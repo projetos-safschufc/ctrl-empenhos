@@ -1,0 +1,1690 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["ctrl", "public"]
+}
+
+model Profile {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  permissions String?
+
+  @@map("profiles")
+  @@schema("ctrl")
+}
+
+model User {
+  id                                                          Int                   @id @default(autoincrement())
+  name                                                        String                @db.VarChar(150)
+  email                                                       String                @unique @db.VarChar(180)
+  passwordHash                                                String                @map("password_hash")
+  profileId                                                   Int                   @map("profile_id")
+  createdAt                                                   DateTime?             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                                                   DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status                                                      String?               @default("ativo") @db.VarChar(50)
+  active                                                      Boolean               @default(true)
+  auditLogs                                                   AuditLogs[]
+  historico                                                   HistCtrlEmpenho[]
+  project_permissions_project_permissions_shared_by_idTousers project_permissions[] @relation("project_permissions_shared_by_idTousers")
+  project_permissions_project_permissions_user_idTousers      project_permissions[] @relation("project_permissions_user_idTousers")
+  projects                                                    projects[]
+  task_permissions                                            task_permissions[]
+  tasks_tasks_created_by_idTousers                            ctrl_tasks[]          @relation("tasks_created_by_idTousers")
+  tasks_tasks_responsible_user_idTousers                      ctrl_tasks[]          @relation("tasks_responsible_user_idTousers")
+  activityMetrics                                             UserActivityMetrics[]
+  profile                                                     access_profile        @relation(fields: [profileId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("users")
+  @@schema("ctrl")
+}
+
+model SafsCatalogo {
+  id              Int       @id @default(autoincrement())
+  master          String?   @unique
+  aghu_hu         String?
+  aghu_me         String?
+  catmat          String?
+  ebserh          String?
+  descricao_mat   String?
+  apres           String?
+  setor_controle  String?
+  respControle    String?   @map("resp_controle")
+  servAquisicao   String?   @map("serv_aquisicao")
+  hosp_demand     String?
+  resp_planj      String?
+  resp_fisc       String?
+  resp_gest_tec   String?
+  gr              String?
+  ativo           Boolean?  @default(true)
+  last_updated_by String?   @db.VarChar(150)
+  last_updated_at DateTime? @default(now()) @db.Timestamptz(6)
+  xyz             String?
+  descricao       String?
+  setor           String?
+  unidade         String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("safs_catalogo")
+  @@schema("ctrl")
+}
+
+model HistCtrlEmpenho {
+  id                   Int       @id @default(autoincrement())
+  data_registro        DateTime? @default(now()) @db.Timestamptz(6)
+  materialId           String    @map("material_id")
+  classificacao        String?   @map("classificacao")
+  responsavel_controle String?
+  setorControle        String?   @map("setor_controle")
+  registro_master      String?
+  valorUnitRegistro    Decimal?  @map("valor_unit_registro") @db.Decimal(18, 2)
+  saldoRegistro        Decimal?  @map("saldo_registro") @db.Decimal(18, 2)
+  qtdePorEmbalagem     Decimal?  @map("qtde_por_embalagem") @db.Decimal(18, 2)
+  tipoArmazenamento    String?   @map("tipo_armazenamento")
+  capacidadeEstocagem  Decimal?  @map("capacidade_estocagem") @db.Decimal(18, 2)
+  observacao           String?
+  usuarioId            Int?      @map("usuario_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  respControle         String?   @map("resp_controle") @db.VarChar(200)
+  masterDescritivo     String?   @map("master_descritivo") @db.VarChar(100)
+  numeroRegistro       String?   @map("numero_registro") @db.VarChar(50)
+  usuario              User?     @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("hist_ctrl_empenho")
+  @@schema("ctrl")
+}
+
+model Empenho {
+  id                    Int       @id @default(autoincrement())
+  nm_fornecedor         String?   @map("nm_fornecedor")
+  cd_cgc                String?
+  nu_processo           String?
+  nu_registro_licitacao String?   @map("nu_registro_licitacao")
+  nu_abertura_licitacao String?
+  nu_pregao             String?   @map("nu_pregao")
+  tipo_licitacao        String?
+  tipo_contrato         String?
+  mod_licitacao         String?
+  dt_inicio_vigencia    DateTime? @db.Date
+  dt_fim_vigencia       DateTime? @map("dt_fim_vigencia") @db.Date
+  dt_empenho            DateTime? @db.Date
+  dt_emissao_siafi      DateTime? @db.Date
+  item                  String?
+  material              String?
+  cd_material           String?
+  qt_material           Decimal?  @db.Decimal(18, 2)
+  qt_empenhado          Decimal?  @db.Decimal(18, 2)
+  qt_saldo              Decimal?  @map("qt_saldo") @db.Decimal(18, 2)
+  sum_qtd_saldo_item    Decimal?  @db.Decimal(18, 2)
+  qt_saldo_item         Decimal?  @map("qt_saldo_item") @db.Decimal(18, 2)
+  qt_de_embalagem       Decimal?  @map("qt_de_embalagem") @db.Decimal(18, 2)
+  vl_total              Decimal?  @db.Decimal(18, 2)
+  vl_unidade            Decimal?  @map("vl_unidade") @db.Decimal(18, 2)
+  vl_total1             Decimal?  @db.Decimal(18, 2)
+  vl_empenhado          Decimal?  @db.Decimal(18, 2)
+  vl_saldo              Decimal?  @map("vl_saldo") @db.Decimal(18, 2)
+  vl_empenho            Decimal?  @db.Decimal(18, 2)
+  vl_por_embalagem      Decimal?  @db.Decimal(18, 2)
+  cd_empenho            String?
+  fl_evento             String?   @map("fl_evento")
+  nu_documento_siafi    String?   @map("nu_documento_siafi")
+  status_registro       String?
+  status_item           String?   @map("status_item")
+  status_pedido         String?   @map("status_pedido")
+  createdAt             DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([cd_empenho], map: "idx_empenho_cd_empenho")
+  @@index([dt_empenho], map: "idx_empenho_dt_empenho")
+  @@index([nm_fornecedor], map: "idx_empenho_nm_fornecedor")
+  @@index([nu_documento_siafi], map: "idx_empenho_nu_documento_siafi")
+  @@map("empenho")
+  @@schema("public")
+}
+
+model AuditLogs {
+  id              BigInt    @id @default(autoincrement())
+  userId          Int?      @map("user_id")
+  sessionId       String?   @map("session_id") @db.VarChar(255)
+  action          String    @db.VarChar(100)
+  entityType      String    @map("entity_type") @db.VarChar(100)
+  entityId        String?   @map("entity_id") @db.VarChar(255)
+  oldValues       Json?     @map("old_values")
+  newValues       Json?     @map("new_values")
+  ipAddress       String?   @map("ip_address") @db.Inet
+  userAgent       String?   @map("user_agent")
+  endpoint        String?   @db.VarChar(500)
+  httpMethod      String?   @map("http_method") @db.VarChar(10)
+  statusCode      Int?      @map("status_code")
+  executionTimeMs Int?      @map("execution_time_ms")
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  metadata        Json?     @default("{}")
+  user            User?     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([action, createdAt(sort: Desc)], map: "idx_audit_logs_action_created")
+  @@index([createdAt(sort: Desc)], map: "idx_audit_logs_created_at")
+  @@index([entityType, entityId], map: "idx_audit_logs_entity")
+  @@index([metadata], map: "idx_audit_logs_metadata_gin", type: Gin)
+  @@index([sessionId, createdAt(sort: Desc)], map: "idx_audit_logs_session")
+  @@index([userId, createdAt(sort: Desc)], map: "idx_audit_logs_user_created")
+  @@map("audit_logs")
+  @@schema("ctrl")
+}
+
+model SystemMetrics {
+  id          BigInt    @id @default(autoincrement())
+  metricName  String    @map("metric_name") @db.VarChar(100)
+  metricValue Decimal   @map("metric_value") @db.Decimal(15, 4)
+  metricUnit  String?   @map("metric_unit") @db.VarChar(20)
+  tags        Json?     @default("{}")
+  recordedAt  DateTime? @default(now()) @map("recorded_at") @db.Timestamptz(6)
+
+  @@index([metricName, recordedAt(sort: Desc)], map: "idx_system_metrics_name_recorded")
+  @@index([recordedAt(sort: Desc)], map: "idx_system_metrics_recorded_at")
+  @@index([tags], map: "idx_system_metrics_tags_gin", type: Gin)
+  @@map("system_metrics")
+  @@schema("ctrl")
+}
+
+model UserActivityMetrics {
+  id            BigInt    @id @default(autoincrement())
+  userId        Int?      @map("user_id")
+  activityType  String    @map("activity_type") @db.VarChar(100)
+  activityCount Int?      @default(1) @map("activity_count")
+  activityDate  DateTime? @default(dbgenerated("CURRENT_DATE")) @map("activity_date") @db.Date
+  lastActivity  DateTime? @default(now()) @map("last_activity") @db.Timestamptz(6)
+  metadata      Json?     @default("{}")
+  user          User?     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([userId, activityType, activityDate])
+  @@index([activityType, activityDate(sort: Desc)], map: "idx_user_activity_type_date")
+  @@index([userId, activityDate(sort: Desc)], map: "idx_user_activity_user_date")
+  @@map("user_activity_metrics")
+  @@schema("ctrl")
+}
+
+
+model access_profile {
+  id                 Int                  @id @default(autoincrement())
+  name               String               @unique @db.VarChar(50)
+  description        String?
+  profile_permission profile_permission[]
+  users              User[]
+
+  @@schema("ctrl")
+}
+
+model alerta_cons {
+  id_alerta          Int       @id @default(autoincrement())
+  nm_destinatario    String
+  email_destinatario String    @unique(map: "alerta_cons_cons_destinatario_key") @db.VarChar(255)
+  ativo              Boolean   @default(true)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("ctrl")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model emp_pend {
+  id_emp              Int       @id @default(autoincrement())
+  empenho             String    @unique(map: "empenho_unique")
+  dt_confirma_receb   DateTime? @db.Date
+  prazo_entrega       Int?      @default(0)
+  previsao_entrega    DateTime? @db.Date
+  status_entrega      String?
+  notificacao         String?
+  apuracao_irreg      Boolean?  @default(false)
+  aplicacao_imr       Boolean?  @default(false)
+  troca_marca         Boolean?  @default(false)
+  reequilibrio_financ Boolean?  @default(false)
+  dt_recebimento      DateTime? @db.Date
+  observacao          String?
+  proc_apuracao       String?
+  valor_imr           Decimal?  @db.Decimal(15, 2)
+  proc_troca_marca    String?
+  proc_reequilibrio   String?
+
+  @@index([empenho], map: "idx_emp_pend_empenho")
+  @@index([previsao_entrega], map: "idx_emp_pend_previsao")
+  @@schema("ctrl")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model hist_emp_pend {
+  id_hist             Int       @id @default(autoincrement())
+  master              String?
+  descritivo          String?
+  media_mes           Float?    @default(0) @db.Real
+  estoque             Int?      @default(0)
+  registro            String?
+  vl_unit             Float?    @default(0) @db.Real
+  qtde_licitada       Int?      @default(0)
+  qtde_a_emp          Int?      @default(0)
+  fim_vigencia        DateTime? @db.Date
+  setor_ctrl          String?
+  fornecedor          String?
+  cnpj                String?
+  processo            String?
+  reg_licit           String?
+  empenho             String?
+  qtde_empenhada      Int?      @default(0)
+  saldo_emp           Int?      @default(0)
+  status_pedido       String?
+  data_email          String?
+  dt_confirma_receb   DateTime? @db.Date
+  prazo_entrega       Int?      @default(0)
+  previsao_entrega    DateTime? @db.Date
+  status_entrega      String?
+  notificacao         String?
+  apuracao_irreg      Boolean?  @default(false)
+  aplicacao_imr       Boolean?  @default(false)
+  troca_marca         Boolean?  @default(false)
+  reequilibrio_financ Boolean?  @default(false)
+  dt_recebimento      DateTime? @db.Date
+  observacao          String?
+
+  @@schema("ctrl")
+}
+
+model permission {
+  id                 Int                  @id @default(autoincrement())
+  code               String               @unique @db.VarChar(100)
+  description        String?
+  profile_permission profile_permission[]
+
+  @@schema("ctrl")
+}
+
+model profile_permission {
+  profile_id     Int
+  permission_id  Int
+  permission     permission     @relation(fields: [permission_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  access_profile access_profile @relation(fields: [profile_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([profile_id, permission_id])
+  @@schema("ctrl")
+}
+
+model project_permissions {
+  id                                            Int       @id @default(autoincrement())
+  project_id                                    Int
+  user_id                                       Int
+  can_view                                      Boolean?  @default(true)
+  can_edit                                      Boolean?  @default(true)
+  shared_by_id                                  Int
+  created_at                                    DateTime? @default(now()) @db.Timestamptz(6)
+  projects                                      projects  @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_project_permissions_shared_by_idTousers User      @relation("project_permissions_shared_by_idTousers", fields: [shared_by_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_project_permissions_user_idTousers      User      @relation("project_permissions_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([project_id, user_id])
+  @@index([project_id], map: "idx_project_permissions_project_id")
+  @@index([shared_by_id], map: "idx_project_permissions_shared_by_id")
+  @@index([user_id], map: "idx_project_permissions_user_id")
+  @@schema("ctrl")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model projects {
+  id                  Int                   @id @default(autoincrement())
+  title               String                @db.VarChar(255)
+  description         String?
+  owner_id            Int
+  status              String?               @default("ativo") @db.VarChar(50)
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  project_permissions project_permissions[]
+  users               User                  @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tasks               ctrl_tasks[]
+
+  @@index([owner_id], map: "idx_projects_owner_id")
+  @@index([status], map: "idx_projects_status")
+  @@schema("ctrl")
+}
+
+model ctrl_safs_func {
+  id_func    Int     @id @default(autoincrement())
+  nome_func  String
+  setor_func String?
+  status     String?
+  cargo      String?
+
+  @@map("safs_func")
+  @@schema("ctrl")
+}
+
+model ctrl_safs_gr_materiais {
+  id_gr            Int     @id @default(autoincrement())
+  codigo           String  @unique @db.VarChar(50)
+  grupo            String  @db.VarChar(200)
+  resp_controlador String?
+  resp_tecnico     String?
+
+  @@map("safs_gr_materiais")
+  @@schema("ctrl")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model safs_hist_emp {
+  id                    Int       @id @default(autoincrement())
+  nm_fornecedor         String?
+  cd_cgc                String?
+  nu_processo           String?
+  nu_registro_licitacao String?
+  nu_abertura_licitacao String?
+  nu_pregao             String?
+  dt_inicio_vigencia    DateTime? @db.Date
+  dt_fim_vigencia       DateTime? @db.Date
+  tipo_licitacao        String?
+  tipo_contrato         String?
+  mod_licitcao          String?
+  vl_total              Decimal?  @db.Decimal(15, 2)
+  item                  String?
+  material              String?
+  qt_material           Int?
+  vl_unidade            Decimal?  @db.Decimal(15, 2)
+  vl_total1             Decimal?  @db.Decimal(15, 2)
+  status_registro       String?
+  qt_empenhado          Int?
+  vl_empenhado          Decimal?  @db.Decimal(15, 2)
+  qt_saldo              Int?
+  vl_saldo              Decimal?  @db.Decimal(15, 2)
+  dt_empenho            DateTime? @db.Date
+  cd_empenho            String?
+  fl_evento             String?
+  nu_documento_siafi    String?
+  vl_empenho            Decimal?  @db.Decimal(15, 2)
+  qt_saldo_item         Int?
+  dt_emissao_siafi      DateTime? @db.Date
+  dt_emissao            DateTime? @db.Date
+  cd_nota               String?
+  dt_recebimento        DateTime? @db.Date
+  vl_nota               Decimal?  @db.Decimal(15, 2)
+  vl_material           Decimal?  @db.Decimal(15, 2)
+  valor                 Decimal?  @db.Decimal(15, 2)
+  cd_nota_fornecedor    String?
+  quantidade            Int?
+  devolvido             Int?
+  qt_de_embalagem       Int?
+  cd_material           String?
+  status_pedido         String?
+  vl_por_embalagem      Decimal?  @db.Decimal(15, 2)
+
+  @@index([cd_cgc], map: "idx_safs_hist_emp_cgc")
+  @@index([dt_fim_vigencia], map: "idx_safs_hist_emp_dt_fim")
+  @@index([dt_inicio_vigencia], map: "idx_safs_hist_emp_dt_inicio")
+  @@index([nm_fornecedor], map: "idx_safs_hist_emp_fornecedor")
+  @@index([id], map: "idx_safs_hist_emp_id")
+  @@index([nu_processo], map: "idx_safs_hist_emp_processo")
+  @@schema("ctrl")
+}
+
+model task_permissions {
+  id         Int        @id @default(autoincrement())
+  task_id    Int
+  user_id    Int
+  can_view   Boolean?   @default(true)
+  can_edit   Boolean?   @default(false)
+  created_at DateTime?  @default(now()) @db.Timestamptz(6)
+  tasks      ctrl_tasks @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users      User       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([task_id, user_id])
+  @@index([task_id], map: "idx_task_permissions_task_id")
+  @@index([user_id], map: "idx_task_permissions_user_id")
+  @@schema("ctrl")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ctrl_tasks {
+  id                                     Int                @id @default(autoincrement())
+  project_id                             Int
+  title                                  String             @db.VarChar(255)
+  description                            String?
+  status                                 String?            @default("to_do") @db.VarChar(50)
+  responsible_user_id                    Int?
+  created_by_id                          Int
+  priority                               String?            @default("medium") @db.VarChar(20)
+  due_date                               DateTime?          @db.Date
+  created_at                             DateTime?          @default(now()) @db.Timestamptz(6)
+  updated_at                             DateTime?          @default(now()) @db.Timestamptz(6)
+  task_permissions                       task_permissions[]
+  users_tasks_created_by_idTousers       User               @relation("tasks_created_by_idTousers", fields: [created_by_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  projects                               projects           @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_tasks_responsible_user_idTousers User?              @relation("tasks_responsible_user_idTousers", fields: [responsible_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_by_id], map: "idx_tasks_created_by_id")
+  @@index([project_id], map: "idx_tasks_project_id")
+  @@index([responsible_user_id], map: "idx_tasks_responsible_user_id")
+  @@index([status], map: "idx_tasks_status")
+  @@map("tasks")
+  @@schema("ctrl")
+}
+
+model activity_logs {
+  id        Int       @id @default(autoincrement())
+  user_id   Int?
+  action    String    @db.VarChar(200)
+  timestamp DateTime? @default(now()) @db.Timestamp(6)
+  users     users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model alembic_version {
+  version_num String @id(map: "alembic_version_pkc") @db.VarChar(32)
+
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model aoicuace_2025 {
+  codigo_padronizado String? @db.VarChar(256)
+
+  @@ignore
+  @@schema("public")
+}
+
+model aplicativos {
+  id           Int           @id @default(autoincrement())
+  nome         String        @db.VarChar(200)
+  descricao    String?
+  url          String        @db.VarChar(500)
+  categoria_id Int?
+  logo         String?       @db.VarChar(200)
+  cor          String?       @db.VarChar(7)
+  tags         String[]      @db.VarChar
+  status       String?       @db.VarChar(20)
+  ordem        Int?
+  ativo        Boolean?
+  created_at   DateTime?     @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime?     @default(now()) @db.Timestamptz(6)
+  categorias   categorias?   @relation(fields: [categoria_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  logs_acesso  logs_acesso[]
+
+  @@index([id], map: "ix_aplicativos_id")
+  @@index([nome], map: "ix_aplicativos_nome")
+  @@schema("public")
+}
+
+model app_empenho {
+  id               Int                @id @default(autoincrement())
+  data_empenho     DateTime?          @default(now()) @db.Timestamptz(6)
+  numero_empenho   String?            @db.VarChar(50)
+  usuario_id       Int?
+  safs_usuarios    safs_usuarios?     @relation(fields: [usuario_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_item_empenho app_item_empenho[]
+
+  @@schema("public")
+}
+
+model app_item_empenho {
+  id                 Int          @id @default(autoincrement())
+  codigo_material    String       @db.VarChar(50)
+  descricao_material String       @db.VarChar(500)
+  id_funcionario     Int?
+  registro           String       @db.VarChar(100)
+  vigencia           DateTime     @db.Date
+  saldo              Decimal      @db.Decimal(18, 2)
+  valor_unitario     Decimal      @db.Decimal(18, 2)
+  quantidade_pedido  Int
+  valor_total        Decimal      @db.Decimal(18, 2)
+  empenho_id         Int?
+  app_empenho        app_empenho? @relation(fields: [empenho_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model auth_group {
+  id                     Int                      @id @default(autoincrement())
+  name                   String                   @unique @db.VarChar(150)
+  auth_group_permissions auth_group_permissions[]
+  auth_user_groups       auth_user_groups[]
+
+  @@index([name], map: "auth_group_name_a6ea08ec_like")
+  @@schema("public")
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model auth_group_permissions {
+  id              BigInt          @id @default(autoincrement())
+  group_id        Int
+  permission_id   Int
+  auth_permission auth_permission @relation(fields: [permission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_group_permissio_permission_id_84c5c92e_fk_auth_perm")
+  auth_group      auth_group      @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_group_permissions_group_id_b120cbf9_fk_auth_group_id")
+
+  @@unique([group_id, permission_id], map: "auth_group_permissions_group_id_permission_id_0cd325b0_uniq")
+  @@index([group_id], map: "auth_group_permissions_group_id_b120cbf9")
+  @@index([permission_id], map: "auth_group_permissions_permission_id_84c5c92e")
+  @@schema("public")
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model auth_permission {
+  id                         Int                          @id @default(autoincrement())
+  name                       String                       @db.VarChar(255)
+  content_type_id            Int
+  codename                   String                       @db.VarChar(100)
+  auth_group_permissions     auth_group_permissions[]
+  django_content_type        django_content_type          @relation(fields: [content_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_permission_content_type_id_2f476e4b_fk_django_co")
+  auth_user_user_permissions auth_user_user_permissions[]
+
+  @@unique([content_type_id, codename], map: "auth_permission_content_type_id_codename_01ab375a_uniq")
+  @@index([content_type_id], map: "auth_permission_content_type_id_2f476e4b")
+  @@schema("public")
+}
+
+model auth_user {
+  id                         Int                          @id @default(autoincrement())
+  password                   String                       @db.VarChar(128)
+  last_login                 DateTime?                    @db.Timestamptz(6)
+  is_superuser               Boolean
+  username                   String                       @unique @db.VarChar(150)
+  first_name                 String                       @db.VarChar(150)
+  last_name                  String                       @db.VarChar(150)
+  email                      String                       @db.VarChar(254)
+  is_staff                   Boolean
+  is_active                  Boolean
+  date_joined                DateTime                     @db.Timestamptz(6)
+  auth_user_groups           auth_user_groups[]
+  auth_user_user_permissions auth_user_user_permissions[]
+  django_admin_log           django_admin_log[]
+
+  @@index([username], map: "auth_user_username_6821ab7c_like")
+  @@schema("public")
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model auth_user_groups {
+  id         BigInt     @id @default(autoincrement())
+  user_id    Int
+  group_id   Int
+  auth_group auth_group @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_user_groups_group_id_97559544_fk_auth_group_id")
+  auth_user  auth_user  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_user_groups_user_id_6a12ed8b_fk_auth_user_id")
+
+  @@unique([user_id, group_id], map: "auth_user_groups_user_id_group_id_94350c0c_uniq")
+  @@index([group_id], map: "auth_user_groups_group_id_97559544")
+  @@index([user_id], map: "auth_user_groups_user_id_6a12ed8b")
+  @@schema("public")
+}
+
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model auth_user_user_permissions {
+  id              BigInt          @id @default(autoincrement())
+  user_id         Int
+  permission_id   Int
+  auth_permission auth_permission @relation(fields: [permission_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_user_user_permi_permission_id_1fbb5f2c_fk_auth_perm")
+  auth_user       auth_user       @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "auth_user_user_permissions_user_id_a95ead1b_fk_auth_user_id")
+
+  @@unique([user_id, permission_id], map: "auth_user_user_permissions_user_id_permission_id_14a6b632_uniq")
+  @@index([permission_id], map: "auth_user_user_permissions_permission_id_1fbb5f2c")
+  @@index([user_id], map: "auth_user_user_permissions_user_id_a95ead1b")
+  @@schema("public")
+}
+
+model catalogo_mat {
+  id_catalogo           Int                     @id @default(autoincrement())
+  cod_unif              String?                 @db.VarChar(255)
+  nome                  String?                 @db.VarChar(255)
+  umd_codigo            String?                 @db.VarChar(255)
+  gmt_codigo            String?                 @db.VarChar(255)
+  grupo                 String?                 @db.VarChar(255)
+  cod_mat_antigo        String?                 @db.VarChar(255)
+  cod_hosp              String?                 @db.VarChar(255)
+  safs_itens_emprestimo safs_itens_emprestimo[]
+
+  @@index([cod_mat_antigo], map: "idx_catalogo_mat_cod_mat_antigo")
+  @@index([cod_unif], map: "idx_catalogo_mat_cod_unif")
+  @@index([nome], map: "idx_catalogo_mat_nome")
+  @@schema("public")
+}
+
+model categorias {
+  id          Int           @id @default(autoincrement())
+  nome        String        @unique(map: "ix_categorias_nome") @db.VarChar(100)
+  descricao   String?
+  cor         String?       @db.VarChar(7)
+  icone       String?       @db.VarChar(50)
+  ativo       Boolean?
+  created_at  DateTime?     @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime?     @default(now()) @db.Timestamptz(6)
+  aplicativos aplicativos[]
+
+  @@index([id], map: "ix_categorias_id")
+  @@schema("public")
+}
+
+model cirurgia_paciente {
+  id                Int       @id @default(autoincrement())
+  seq               Int?
+  data              DateTime? @db.Date
+  dthr_inicio_cirg  DateTime? @db.Date
+  dthr_fim_cirg     DateTime? @db.Date
+  sci_seqp          String?
+  pac_codigo        String?
+  nome              String?
+  prontuario        String?
+  lto_lto_id        String?
+  dt_ult_internacao DateTime? @db.Date
+  dt_ult_alta       DateTime? @db.Date
+  ser_vin_codigo    String?
+  ser_matricula     String?
+  descricao         String?
+  nome_resp         String?
+
+  @@schema("public")
+}
+
+model cirurgias_opme {
+  id                        Int                         @id @default(autoincrement())
+  prontuario                String                      @db.VarChar(50)
+  paciente                  String                      @db.VarChar(255)
+  dt_solicitacao            DateTime?                   @db.Date
+  dt_realizacao             DateTime?                   @db.Date
+  medico_solicitante        String?                     @db.VarChar(255)
+  crm                       String?                     @db.VarChar(20)
+  procedimento_cirurgico    String?
+  justificativa             String?
+  anexo                     String?
+  doc_sei                   String?                     @db.VarChar(100)
+  observacoes               String?
+  created_at                DateTime?                   @default(now()) @db.Timestamp(6)
+  materiais_utilizados_opme materiais_utilizados_opme[]
+
+  @@schema("public")
+}
+
+model controlador {
+  id_controlador    Int                @id(map: "pk_controlador") @default(autoincrement())
+  controlador_resp  String?
+  controlador_setor String?
+  status            status_controlador
+
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model df_movimento_safs {
+  id                  Int?
+  dt_competencia      DateTime? @db.Timestamptz(6)
+  dt_geracao          DateTime? @db.Timestamptz(6)
+  mat_codigo          Int?
+  quantidade          Int?
+  movimento_cd        String?
+  movimento_descricao String?
+  umd_codigo          String?
+  mat_cod_antigo      String?
+  alm_nome            String?
+  hospital            String?
+  cd_grupo            Float?
+  nm_grupo            String?
+  mesano              DateTime? @db.Date
+  grupo               String?
+  centro_atividade    String?
+
+  @@index([dt_geracao], map: "idx_df_movimento_safs_dt_geracao")
+  @@index([movimento_cd], map: "idx_df_movimento_safs_movimento_cd")
+  @@ignore
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model django_admin_log {
+  id                  Int                  @id @default(autoincrement())
+  action_time         DateTime             @db.Timestamptz(6)
+  object_id           String?
+  object_repr         String               @db.VarChar(200)
+  action_flag         Int                  @db.SmallInt
+  change_message      String
+  content_type_id     Int?
+  user_id             Int
+  django_content_type django_content_type? @relation(fields: [content_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "django_admin_log_content_type_id_c4bce8eb_fk_django_co")
+  auth_user           auth_user            @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "django_admin_log_user_id_c564eba6_fk_auth_user_id")
+
+  @@index([content_type_id], map: "django_admin_log_content_type_id_c4bce8eb")
+  @@index([user_id], map: "django_admin_log_user_id_c564eba6")
+  @@schema("public")
+}
+
+model django_content_type {
+  id               Int                @id @default(autoincrement())
+  app_label        String             @db.VarChar(100)
+  model            String             @db.VarChar(100)
+  auth_permission  auth_permission[]
+  django_admin_log django_admin_log[]
+
+  @@unique([app_label, model], map: "django_content_type_app_label_model_76bd3d3b_uniq")
+  @@schema("public")
+}
+
+model django_migrations {
+  id      BigInt   @id @default(autoincrement())
+  app     String   @db.VarChar(255)
+  name    String   @db.VarChar(255)
+  applied DateTime @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model django_session {
+  session_key  String   @id @db.VarChar(40)
+  session_data String
+  expire_date  DateTime @db.Timestamptz(6)
+
+  @@index([expire_date], map: "django_session_expire_date_a5c62663")
+  @@index([session_key], map: "django_session_session_key_c0390e0f_like")
+  @@schema("public")
+}
+
+model empenho_entry {
+  id             Int      @id @default(autoincrement())
+  empenho_numero String   @db.VarChar(255)
+  item           String   @db.VarChar(255)
+  qtde           Decimal  @db.Decimal(15, 2)
+  date           DateTime @db.Timestamptz(6)
+  user           String   @db.VarChar(255)
+  situation      String   @db.VarChar(20)
+
+  @@schema("public")
+}
+
+model empenhos_pendentes {
+  id                 Int       @id @default(autoincrement())
+  nm_fornecedor      String?
+  registro           String?
+  pregao             String?
+  vigencia           DateTime? @db.Date
+  item               String?
+  material           String?
+  qtde               Int?
+  vl_uni             Float?    @db.Real
+  vl_total1          Float?    @db.Real
+  status_registro    String?
+  qt_empenhado       Int?
+  vl_empenhado       Float?    @db.Real
+  qt_saldo           Int?
+  vl_saldo           Float?    @db.Real
+  sum_qtd_saldo_item Int?
+  dt_empenho         DateTime? @db.Date
+  cd_empenho         String?
+  fl_evento          String?
+  nu_documento_siafi String?
+  dt_emissao_siafi   DateTime? @db.Date
+  vl_empenho         Float?    @db.Real
+  status_item        String?
+  qt_saldo_item      Int?
+  qt_de_embalagem    Int?
+  cd_material        String?
+  status_pedido      String?
+  vl_por_embalagem   Float?    @db.Real
+  empenho            String?
+  saldo_emp          Float?    @db.Real
+  dt_consulta        DateTime? @db.Date
+  situacao           DateTime? @db.Date
+  dt_env_emp         DateTime? @db.Date
+  id_emp_pend        Int?
+  atualizacao        DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("public")
+}
+
+model emprestimos {
+  data_op        DateTime? @db.Date
+  tipo_operacao  String    @db.VarChar(50)
+  doc_sei        String    @db.VarChar(50)
+  controle       String    @db.VarChar(50)
+  codigo         String    @db.VarChar(50)
+  descritivo     String    @db.VarChar(480)
+  ent_parceira   String    @db.VarChar(255)
+  lote           String?   @db.VarChar(50)
+  validade       DateTime? @db.Date
+  movimento      String    @db.VarChar(50)
+  pgto_opera_num String?   @db.VarChar(300)
+  qtde           Int
+  vl_unit        Float?    @db.Real
+  subtotal       Float?    @db.Real
+  observacao     String?   @db.VarChar(255)
+  status         String    @db.VarChar(150)
+  id_empr        Int       @id @default(autoincrement())
+  usuario        String?   @db.VarChar(255)
+  nosso_id       String?   @db.VarChar(255)
+
+  @@schema("public")
+}
+
+model entidades {
+  id_ent                    Int                         @id @default(autoincrement())
+  nm_entidade               String                      @db.VarChar(300)
+  cidade                    String                      @db.VarChar(100)
+  uf                        String                      @db.VarChar(2)
+  safs_operacoes_emprestimo safs_operacoes_emprestimo[]
+
+  @@index([nm_entidade], map: "idx_entidades_nm_entidade")
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model funcionarios {
+  id_funcionario Int     @default(autoincrement())
+  nome           String? @db.VarChar(100)
+
+  @@ignore
+  @@schema("public")
+}
+
+model hist_registros {
+  id                    Int       @id @default(autoincrement())
+  nm_fornecedor         String?   @db.VarChar(255)
+  cd_cgc                String?   @db.VarChar(32)
+  nu_processo           String?   @db.VarChar(255)
+  nu_registro_licitacao String?   @db.VarChar(255)
+  nu_abertura_licitacao String?   @db.VarChar(255)
+  nu_pregao             String?   @db.VarChar(255)
+  dt_inicio_vigencia    DateTime? @db.Date
+  dt_fim_vigencia       DateTime? @db.Date
+  tipo_licitacao        String?   @db.VarChar(255)
+  tipo_contrato         String?   @db.VarChar(255)
+  mod_licitcao          String?   @db.VarChar(255)
+  vl_total              Decimal?  @db.Decimal(10, 2)
+  item                  BigInt?
+  material              String?   @db.VarChar(255)
+  qt_material           Int?
+  vl_unidade            Decimal?  @db.Decimal(10, 2)
+  vl_total1             Decimal?  @db.Decimal(10, 2)
+  status_registro       String?   @db.VarChar(255)
+  qt_empenhado          Int?
+  vl_empenhado          Decimal?  @db.Decimal(10, 2)
+  qt_saldo              Int?
+  vl_saldo              Decimal?  @db.Decimal(10, 2)
+  dt_empenho            DateTime? @db.Date
+  cd_empenho            String?   @db.VarChar(255)
+  fl_evento             String?   @db.VarChar(255)
+  nu_documento_siafi    String?   @db.VarChar(255)
+  vl_empenho_item       Decimal?  @db.Decimal(10, 2)
+  qt_saldo_item         Int?
+  dt_emissao_siafi      DateTime? @db.Date
+  dt_emissao            DateTime? @db.Date
+  cd_nota               String?   @db.VarChar(255)
+  dt_recebimento        DateTime? @db.Date
+  vl_nota               Decimal?  @db.Decimal(10, 2)
+  vl_material           Decimal?  @db.Decimal(10, 2)
+  valor                 Decimal?  @db.Decimal(10, 2)
+  cd_nota_fornecedor    String?   @db.VarChar(255)
+  quantidade            Int?
+  devolvido             Int?
+  qt_de_embalagem       Int?
+  cd_material           String?   @db.VarChar(255)
+  status_pedido         String?   @db.VarChar(255)
+  vl_por_embalagem      Decimal?  @db.Decimal(10, 2)
+  vl_empenho            Decimal?  @db.Decimal(10, 2)
+  created_at            DateTime? @default(now()) @db.Timestamp(6)
+  updated_at            DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model hub_aplicacao {
+  id           Int       @id @default(autoincrement())
+  nome         String
+  descricao    String?
+  categoria    String?
+  url_link     String?
+  url_image    String?
+  data_criacao DateTime? @default(dbgenerated("CURRENT_DATE")) @db.Date
+
+  @@index([categoria], map: "idx_hub_aplicacao_categoria")
+  @@index([data_criacao], map: "idx_hub_aplicacao_data_criacao")
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model informacoes {
+  n_preempenho       String? @db.VarChar
+  n_sei              String? @db.VarChar
+  observacoes        String? @db.VarChar
+  data_envio         String? @db.VarChar
+  qtd_empenhada      String? @db.VarChar
+  codigo_padronizado String? @db.VarChar
+  id                 Int     @default(autoincrement())
+  id_funcionario     Int     @default(autoincrement())
+  nome               String? @db.VarChar(100)
+
+  @@ignore
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model itens_funcionarios {
+  id_item         Int       @default(autoincrement())
+  descricao       String
+  data_atribuicao DateTime? @db.Date
+  id_funcionario  Int
+
+  @@ignore
+  @@schema("public")
+}
+
+model itens_opme {
+  id            Int       @id @default(autoincrement())
+  master        String?
+  material      String?
+  servico       String?
+  descritivo    String?
+  grupo         String?
+  apres         String?
+  consignado    String?
+  procedimento  String?
+  data_cadastro DateTime? @default(now()) @db.Timestamp(6)
+  imagem_bytea  Bytes?
+
+  @@schema("public")
+}
+
+model itens_processos {
+  codigo_padronizado String    @db.VarChar(255)
+  id_processo        Int
+  atribuido_por      String    @db.VarChar(100)
+  data_atribuicao    DateTime  @default(now()) @db.Timestamp(6)
+  processos          processos @relation(fields: [id_processo], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([codigo_padronizado, id_processo])
+  @@schema("public")
+}
+
+model locais {
+  id_local      Int            @id @default(autoincrement())
+  hospital      String         @db.VarChar(10)
+  nome          String         @db.VarChar(100)
+  endereco      String?        @db.VarChar(200)
+  telefone      String?        @db.VarChar(20)
+  observacoes   String?
+  ativo         Boolean?
+  criado_em     DateTime?      @db.Timestamp(6)
+  atualizado_em DateTime?      @db.Timestamp(6)
+  solicitacoes  solicitacoes[]
+
+  @@index([id_local], map: "ix_locais_id_local")
+  @@schema("public")
+}
+
+model logs_acesso {
+  id            Int         @id @default(autoincrement())
+  aplicativo_id Int
+  ip_address    String?     @db.VarChar(45)
+  user_agent    String?
+  accessed_at   DateTime?   @default(now()) @db.Timestamptz(6)
+  aplicativos   aplicativos @relation(fields: [aplicativo_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id], map: "ix_logs_acesso_id")
+  @@schema("public")
+}
+
+model logs_auditoria {
+  id_log           Int       @id @default(autoincrement())
+  tabela_afetada   String    @db.VarChar(50)
+  id_registro      Int
+  acao             String    @db.VarChar(20)
+  dados_anteriores String?
+  dados_novos      String?
+  id_usuario       Int?
+  ip_usuario       String?   @db.VarChar(45)
+  user_agent       String?   @db.VarChar(500)
+  criado_em        DateTime? @db.Timestamp(6)
+  usuarios         usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_log], map: "ix_logs_auditoria_id_log")
+  @@schema("public")
+}
+
+model materiais_utilizados_opme {
+  id               Int             @id @default(autoincrement())
+  cirurgia_opme_id Int?
+  codigo_master    String?         @db.VarChar(50)
+  material         String?         @db.VarChar(255)
+  qtde             Int?
+  lote             String?         @db.VarChar(50)
+  validade         DateTime?       @db.Date
+  marca            String?         @db.VarChar(100)
+  empenho          String?         @db.VarChar(100)
+  fornecedor       String?         @db.VarChar(255)
+  saldo_emp        Decimal?        @db.Decimal(10, 2)
+  registro         String?         @db.VarChar(100)
+  pregao           String?         @db.VarChar(100)
+  saldo_reg        Decimal?        @db.Decimal(10, 2)
+  vigencia         DateTime?       @db.Date
+  created_at       DateTime?       @default(now()) @db.Timestamp(6)
+  pac_dt_cir       String?         @db.VarChar(400)
+  cirurgias_opme   cirurgias_opme? @relation(fields: [cirurgia_opme_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model motoristas {
+  id_motorista    Int        @id @default(autoincrement())
+  nome            String     @db.VarChar(100)
+  cnh_categoria   String?    @db.VarChar(5)
+  cnh_numero      String?    @unique @db.VarChar(20)
+  telefone        String?    @db.VarChar(20)
+  disponibilidade String?    @db.VarChar(20)
+  id_usuario      Int?       @unique
+  criado_em       DateTime?  @db.Timestamp(6)
+  atualizado_em   DateTime?  @db.Timestamp(6)
+  usuarios        usuarios?  @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  servicos        servicos[]
+
+  @@index([id_motorista], map: "ix_motoristas_id_motorista")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model news {
+  id         Int       @id @default(autoincrement())
+  title      String    @db.VarChar(200)
+  content    String?
+  user_id    Int?
+  category   String?   @db.VarChar(50)
+  status     String    @db.VarChar(20)
+  sheets_id  String?   @db.VarChar(100)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  users      users?    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model nf_empenho {
+  fornecedor String?   @db.VarChar(255)
+  data       DateTime? @default(now()) @db.Timestamp(6)
+  empenho    String    @db.VarChar(255)
+  item       String?   @db.VarChar(255)
+  codigo     String?   @db.VarChar(255)
+  material   String?   @db.VarChar(255)
+  saldo_emp  Decimal?  @db.Decimal
+  v_unit     Decimal?  @db.Decimal
+  v_total    Decimal?  @db.Decimal
+  qtde_receb Decimal?  @db.Decimal
+  situacao   String?   @db.VarChar(20)
+  usuario    String?   @db.VarChar(255)
+  id_emp     Int       @id @default(autoincrement())
+
+  @@schema("public")
+}
+
+model nf_obs {
+  id         Int       @id(map: "nf_obs_new_pkey") @default(autoincrement())
+  empenho_id String?   @db.VarChar(255)
+  observacao String?
+  usuario    String?   @db.VarChar(255)
+  date       DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("public")
+}
+
+model objetos {
+  id_objeto   Int     @id @default(autoincrement())
+  nome_objeto String?
+
+  @@schema("public")
+}
+
+model outlook {
+  id_emp         Int       @id @default(autoincrement())
+  empenho        String?   @unique @db.VarChar(250)
+  data_emp       DateTime? @db.Date
+  ano            String?   @db.VarChar(250)
+  destinatario   String?   @db.VarChar(380)
+  dt_atualizacao DateTime? @db.Date
+
+  @@schema("public")
+}
+
+model pai_cadast_forn {
+  id_frn        Int    @id @default(autoincrement())
+  nm_fornecedor String @db.VarChar(255)
+  cnpj          String @unique @db.VarChar(14)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pai_fornecedores {
+  id                  Int       @id @default(autoincrement())
+  tipo_processo       String
+  data_processo       DateTime  @db.Date
+  fornecedor          String
+  cnpj                String
+  uf                  String
+  processo_origem     String
+  processo_acao       String
+  empenho             String
+  item_pregao         String
+  edital              String
+  codigo_material     String?
+  descritivo_material String?
+  data_ufac           DateTime? @db.Date
+  status              String
+  data_conclusao      DateTime? @db.Date
+  observacao          String?
+  anexos              String?
+  data_criacao        DateTime? @default(now()) @db.Timestamp(6)
+  data_atualizacao    DateTime? @default(now()) @db.Timestamp(6)
+  sancao_aplicada     String?
+  valor_multa         Decimal?  @db.Decimal(15, 2)
+
+  @@index([cnpj], map: "idx_pai_fornecedores_cnpj")
+  @@index([data_processo], map: "idx_pai_fornecedores_data")
+  @@index([processo_origem], map: "idx_pai_fornecedores_processo")
+  @@index([status], map: "idx_pai_fornecedores_status")
+  @@schema("public")
+}
+
+model perfis {
+  id            Int             @id @default(autoincrement())
+  nome          String          @unique @db.VarChar(50)
+  descricao     String?
+  safs_usuarios safs_usuarios[]
+
+  @@schema("public")
+}
+
+model procedimentos {
+  id                     Int     @id @default(autoincrement())
+  tipos_de_procedimentos String? @db.VarChar(500)
+
+  @@schema("public")
+}
+
+model processo_aquisicao {
+  id                                   Int      @id @default(autoincrement())
+  data_criacao_proc                    DateTime @db.Date
+  objeto_aquisicao                     String   @db.VarChar(255)
+  pregao                               String?  @db.VarChar(100)
+  num_processo_planejamento_cronograma String?  @unique(map: "uk_num_processo_planejamento") @db.VarChar(50)
+  status_processo_planejamento         String?  @db.VarChar(100)
+  num_processo_compra_centralizada     String?  @db.VarChar(50)
+  status_processo_centralizado         String?  @db.VarChar(100)
+  observacao_processo                  String?  @db.VarChar(255)
+  nm_controlador                       String?  @db.VarChar(100)
+  criado_por                           String   @db.VarChar(100)
+  setor_controle                       String?  @db.VarChar(6)
+
+  @@schema("public")
+}
+
+model processos {
+  id              Int               @id @default(autoincrement())
+  descricao       String
+  responsavel     String            @db.VarChar(100)
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?         @default(now()) @db.Timestamp(6)
+  is_active       Boolean?          @default(true)
+  atualizado_por  String?           @db.VarChar(100)
+  itens_processos itens_processos[]
+
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model relatorio_opme {
+  nm_fornecedor      String?
+  nu_processo        String?
+  vl_unidade         Decimal? @db.Decimal(18, 2)
+  nu_documento_siafi String?
+  status_item        String?
+  qt_saldo_item      Decimal? @db.Decimal(18, 2)
+  qt_de_embalagem    Decimal? @db.Decimal(18, 2)
+  cd_material        String?
+  master             String?
+  material           String?
+  servico            String?
+  apres              String?
+  consignado         String?
+  procedimento       String?
+
+  @@ignore
+  @@schema("public")
+}
+
+model safs_agenda_opme {
+  id_ag         Int       @id @default(autoincrement())
+  especialidade String?
+  dt_cirurgia   DateTime? @db.Date
+  cd_ordem      String?
+  cd_pre_agenda String?
+  dt_cadastro   DateTime? @db.Date
+  cid           String?
+  procedimento  String?
+  paciente      String?
+  dt_nascimento DateTime? @db.Date
+  nm_mae        String?
+  endereco      String?
+
+  @@schema("public")
+}
+
+model safs_catalogo {
+  id             Int      @id @default(autoincrement())
+  master         String?  @unique(map: "unique_master")
+  aghu_hu        String?
+  aghu_me        String?
+  catmat         String?
+  ebserh         String?
+  descricao_mat  String?
+  apres          String?
+  setor_controle String?
+  resp_controle  String?
+  serv_aquisicao String?
+  hosp_demand    String?
+  resp_planj     String?
+  resp_fisc      String?
+  resp_gest_tec  String?
+  gr             String?
+  ativo          Boolean? @default(true)
+
+  @@schema("public")
+}
+
+model safs_catalogo_grupos {
+  id        Int      @id @default(autoincrement())
+  codigo    String?  @unique(map: "unique_codigo")
+  descricao String?
+  ativo     Boolean? @default(true)
+
+  @@schema("public")
+}
+
+model safs_cirg_opme {
+  id             Int       @id @default(autoincrement())
+  pront_paciente String?
+  nome_paciente  String?
+  data           DateTime? @db.Date
+  procedimento   String?
+  profissional   String?
+  justificativa  String?
+  empenho        String?
+  item           String?
+  fornecedor     String?
+  master         String?
+  descritivo     String?
+  valor_unitario Float?
+  saldo_emp      Int?
+  qtde_consumo   Int?
+  data_criacao   DateTime? @default(now()) @db.Timestamp(6)
+  operador_resp  String?
+  anexo          String?
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model safs_controlador_estoque {
+  id_ctrl_estoq    Int       @id @default(autoincrement())
+  nm_ctrl_estoq    String    @db.VarChar(100)
+  ctrl_setor       String    @db.VarChar(50)
+  status           String    @db.VarChar(7)
+  data_criacao     DateTime? @default(now()) @db.Timestamp(6)
+  data_atualizacao DateTime? @default(now()) @db.Timestamp(6)
+
+  @@schema("public")
+}
+
+model safs_fases_processo {
+  id_fase Int     @id @default(autoincrement())
+  nm_fase String? @db.VarChar(100)
+
+  @@schema("public")
+}
+
+model public_safs_func {
+  id_func    Int     @id(map: "pk_safs_func") @default(autoincrement())
+  nome_func  String
+  setor_func String?
+
+  @@map("safs_func")
+  @@schema("public")
+}
+
+model public_safs_gr_materiais {
+  id_gr  Int    @id(map: "pk_safs_gr_materiais") @default(autoincrement())
+  codigo String @unique(map: "uk_safs_gr_materiais_codigo") @db.VarChar(50)
+  grupo  String @db.VarChar(200)
+
+  @@map("safs_gr_materiais")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model safs_inventario_historico {
+  id_inventario            Int                      @id @default(autoincrement())
+  almoxarifado             String                   @db.VarChar(100)
+  codigo_material          String                   @db.VarChar(50)
+  quantidade_contada       Int
+  data_contagem            DateTime                 @db.Date
+  usuario_contador_id      Int
+  data_registro_sistema    DateTime?                @default(now()) @db.Timestamp(6)
+  safs_usuarios_inventario safs_usuarios_inventario @relation(fields: [usuario_contador_id], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model safs_itens_emprestimo {
+  id_item                     Int                       @id @default(autoincrement())
+  id_operacao                 Int
+  id_catalogo                 Int
+  qt_item                     Decimal                   @db.Decimal(10, 2)
+  vl_unitario                 Decimal                   @db.Decimal(10, 2)
+  st_item                     String                    @default("PENDENTE") @db.VarChar(20)
+  qt_saldo_pendente           Decimal                   @db.Decimal(10, 2)
+  id_item_original            Int?
+  dt_pagamento                DateTime?                 @db.Timestamp(6)
+  dt_criacao                  DateTime                  @default(now()) @db.Timestamp(6)
+  dt_atualizacao              DateTime?                 @db.Timestamp(6)
+  catalogo_mat                catalogo_mat              @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction)
+  safs_itens_emprestimo       safs_itens_emprestimo?    @relation("safs_itens_emprestimoTosafs_itens_emprestimo", fields: [id_item_original], references: [id_item], onUpdate: NoAction)
+  other_safs_itens_emprestimo safs_itens_emprestimo[]   @relation("safs_itens_emprestimoTosafs_itens_emprestimo")
+  safs_operacoes_emprestimo   safs_operacoes_emprestimo @relation(fields: [id_operacao], references: [id_operacao], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([id_catalogo], map: "idx_itens_catalogo")
+  @@index([id_operacao], map: "idx_itens_operacao")
+  @@index([st_item], map: "idx_itens_status")
+  @@index([id_catalogo], map: "idx_safs_itens_id_catalogo")
+  @@index([id_item_original], map: "idx_safs_itens_id_item_original")
+  @@index([id_operacao], map: "idx_safs_itens_id_operacao")
+  @@index([st_item], map: "idx_safs_itens_st_item")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model safs_operacoes_emprestimo {
+  id_operacao           Int                     @id @default(autoincrement())
+  dt_operacao           DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
+  nr_documento          String                  @db.VarChar(50)
+  tp_controle           String                  @db.VarChar(10)
+  id_entidade           Int
+  tp_movimento          String                  @db.VarChar(7)
+  ds_observacao         String?
+  id_usuario            Int
+  dt_criacao            DateTime                @default(now()) @db.Timestamp(6)
+  dt_atualizacao        DateTime?               @db.Timestamp(6)
+  tipo_operacao         String?                 @db.VarChar(20)
+  safs_itens_emprestimo safs_itens_emprestimo[]
+  entidades             entidades               @relation(fields: [id_entidade], references: [id_ent], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_entidade], map: "idx_operacoes_entidade")
+  @@index([dt_operacao], map: "idx_safs_operacoes_dt_operacao")
+  @@index([id_entidade], map: "idx_safs_operacoes_id_entidade")
+  @@index([nr_documento], map: "idx_safs_operacoes_nr_documento")
+  @@index([tipo_operacao], map: "idx_safs_operacoes_tipo_operacao")
+  @@index([tp_movimento], map: "idx_safs_operacoes_tp_movimento")
+  @@schema("public")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model safs_servicos {
+  id_serv           Int    @default(autoincrement())
+  servico           String
+  controlador_setor String
+
+  @@ignore
+  @@schema("public")
+}
+
+model safs_usuarios {
+  id                  Int                  @id @default(autoincrement())
+  nome                String               @db.VarChar(100)
+  email               String               @unique @db.VarChar(100)
+  senha               String
+  perfil_id           Int
+  data_criacao        DateTime             @default(now()) @db.Timestamp(6)
+  data_expiracao      DateTime?            @db.Timestamp(6)
+  ativo               Boolean              @default(true)
+  ultimo_login        DateTime?            @db.Timestamp(6)
+  criado_por          Int?
+  app_empenho         app_empenho[]
+  safs_usuarios       safs_usuarios?       @relation("safs_usuariosTosafs_usuarios", fields: [criado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_safs_usuarios safs_usuarios[]      @relation("safs_usuariosTosafs_usuarios")
+  perfis              perfis               @relation(fields: [perfil_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicos_aquisicao  servicos_aquisicao[]
+  servicos_controle   servicos_controle[]
+
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model safs_usuarios_inventario {
+  id_usuario                Int                         @id @default(autoincrement())
+  username                  String                      @unique @db.VarChar(50)
+  password_hash             String                      @db.VarChar(255)
+  role                      String                      @db.VarChar(20)
+  email                     String?                     @unique @db.VarChar(100)
+  ativo                     Boolean?                    @default(true)
+  data_criacao              DateTime?                   @default(now()) @db.Timestamp(6)
+  safs_inventario_historico safs_inventario_historico[]
+
+  @@schema("public")
+}
+
+model servicos {
+  id_servico            Int           @id @default(autoincrement())
+  id_solicitacao        Int?          @unique
+  id_veiculo            Int?
+  id_motorista          Int?
+  data_saida            DateTime      @db.Timestamp(6)
+  data_chegada          DateTime?     @db.Timestamp(6)
+  status_servico        String?       @db.VarChar(20)
+  quilometragem_saida   Int?
+  quilometragem_chegada Int?
+  observacoes_motorista String?
+  alterado_por          Int?
+  alterado_em           DateTime?     @db.Timestamp(6)
+  criado_em             DateTime?     @db.Timestamp(6)
+  usuarios              usuarios?     @relation(fields: [alterado_por], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  motoristas            motoristas?   @relation(fields: [id_motorista], references: [id_motorista], onDelete: NoAction, onUpdate: NoAction)
+  solicitacoes          solicitacoes? @relation(fields: [id_solicitacao], references: [id_solicitacao], onDelete: NoAction, onUpdate: NoAction)
+  veiculos              veiculos?     @relation(fields: [id_veiculo], references: [id_veiculo], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_servico], map: "ix_servicos_id_servico")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model servicos_aquisicao {
+  aquisicao_id      Int                 @id @default(autoincrement())
+  controlador       String              @db.VarChar(4)
+  descricao_objeto  String
+  data_cadastro     DateTime            @default(now()) @db.Timestamp(6)
+  criado_por        Int
+  user_cont         Int?
+  safs_usuarios     safs_usuarios       @relation(fields: [criado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicos_controle servicos_controle[]
+
+  @@index([controlador], map: "idx_servicos_aquisicao_controlador")
+  @@index([criado_por], map: "idx_servicos_aquisicao_criado_por")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model servicos_controle {
+  servico_id         Int                 @id @default(autoincrement())
+  controlador        String              @db.VarChar(4)
+  descricao_servico  String
+  data_cadastro      DateTime            @default(now()) @db.Timestamp(6)
+  criado_por         Int
+  aquisicao_id       Int?
+  servicos_aquisicao servicos_aquisicao? @relation(fields: [aquisicao_id], references: [aquisicao_id], onUpdate: NoAction, map: "fk_aquisicao")
+  safs_usuarios      safs_usuarios       @relation(fields: [criado_por], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([aquisicao_id], map: "idx_servicos_controle_aquisicao")
+  @@index([controlador], map: "idx_servicos_controle_controlador")
+  @@index([criado_por], map: "idx_servicos_controle_criado_por")
+  @@schema("public")
+}
+
+model solicitacoes {
+  id_solicitacao     Int       @id @default(autoincrement())
+  setor_requisitante String    @db.VarChar(50)
+  tipo_transporte    String    @db.VarChar(30)
+  passageiro         String    @db.VarChar(100)
+  telefone           String?   @db.VarChar(20)
+  qtd_pessoas        Int?
+  id_local_partida   Int?
+  local_destino      String    @db.VarChar(200)
+  data_embarque      DateTime  @db.Date
+  hora_embarque      DateTime  @db.Time(6)
+  hora_retorno       DateTime? @db.Time(6)
+  descricao          String?
+  prioridade         String?   @db.VarChar(10)
+  status             String?   @db.VarChar(20)
+  id_usuario         Int?
+  observacoes_admin  String?
+  criado_em          DateTime? @db.Timestamp(6)
+  atualizado_em      DateTime? @db.Timestamp(6)
+  servicos           servicos?
+  locais             locais?   @relation(fields: [id_local_partida], references: [id_local], onDelete: NoAction, onUpdate: NoAction)
+  usuarios           usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_solicitacao], map: "ix_solicitacoes_id_solicitacao")
+  @@schema("public")
+}
+
+model public_tasks {
+  id          Int       @id @default(autoincrement())
+  description String
+  completed   Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  priority    Int?
+  usuario     String?   @db.VarChar(250)
+
+  @@map("tasks")
+  @@schema("public")
+}
+
+model upde_controlador {
+  id_ctrl_upde Int    @id @default(autoincrement())
+  resp_plan    String @db.VarChar
+  status       String @db.VarChar
+
+  @@schema("public")
+}
+
+model users {
+  id                 Int             @id(map: "users_pkey2") @default(autoincrement())
+  username           String          @unique(map: "users_username_key2") @db.VarChar(50)
+  password           String          @db.VarChar(200)
+  email              String?         @db.VarChar(100)
+  last_login         DateTime?       @db.Timestamp(6)
+  is_admin           Boolean?        @default(false)
+  dashboard_access   Boolean?        @default(true)
+  chat_access        Boolean?        @default(false)
+  itens_access       Boolean?        @default(false)
+  ulog_access        Boolean?        @default(false)
+  emprestimos_access Boolean?        @default(false)
+  uace_access        Boolean?        @default(false)
+  activity_logs      activity_logs[]
+  news               news[]
+
+  @@schema("public")
+}
+
+model usuarios {
+  id_usuario     Int              @id @default(autoincrement())
+  nome           String           @db.VarChar(100)
+  setor          String?          @db.VarChar(50)
+  email          String           @unique(map: "ix_usuarios_email") @db.VarChar(100)
+  celular        String?          @db.VarChar(20)
+  perfil         String           @db.VarChar(20)
+  status         String?          @db.VarChar(20)
+  senha_hash     String?          @db.VarChar(255)
+  google_id      String?          @unique @db.VarChar(100)
+  criado_em      DateTime?        @db.Timestamp(6)
+  atualizado_em  DateTime?        @db.Timestamp(6)
+  logs_auditoria logs_auditoria[]
+  motoristas     motoristas?
+  servicos       servicos[]
+  solicitacoes   solicitacoes[]
+
+  @@index([id_usuario], map: "ix_usuarios_id_usuario")
+  @@schema("public")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model usuarios_upde {
+  id                 Int       @id(map: "users_pkey") @default(autoincrement())
+  username           String    @unique(map: "users_username_key") @db.VarChar(50)
+  email              String    @unique(map: "users_email_key") @db.VarChar(100)
+  password_hash      String    @db.VarChar(255)
+  full_name          String    @db.VarChar(100)
+  department         String    @db.VarChar(50)
+  is_active          Boolean?  @default(true)
+  is_admin           Boolean?  @default(false)
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+  last_login         DateTime? @db.Timestamptz(6)
+  groq_api_key       String?   @db.VarChar(255)
+  dashboard_access   Boolean?  @default(true)
+  chat_access        Boolean?  @default(false)
+  itens_access       Boolean?  @default(false)
+  ulog_access        Boolean?  @default(false)
+  emprestimos_access Boolean?  @default(false)
+  uace_access        Boolean?  @default(false)
+  perfil_de_acesso   String[]  @default([])
+
+  @@schema("public")
+}
+
+model veiculos {
+  id_veiculo             Int        @id @default(autoincrement())
+  nome                   String     @db.VarChar(50)
+  placa                  String     @unique @db.VarChar(10)
+  quilometragem_atual    Int?
+  status                 String?    @db.VarChar(20)
+  capacidade_passageiros Int?
+  tipo_veiculo           String?    @db.VarChar(30)
+  observacoes            String?
+  criado_em              DateTime?  @db.Timestamp(6)
+  atualizado_em          DateTime?  @db.Timestamp(6)
+  servicos               servicos[]
+
+  @@index([id_veiculo], map: "ix_veiculos_id_veiculo")
+  @@schema("public")
+}
+
+enum perfil_usuario {
+  admin
+  user
+
+  @@schema("public")
+}
+
+enum status_controlador {
+  ativo
+  inativo
+
+  @@schema("public")
+}
+
+enum status_solicitacao {
+  aguardando
+  em_andamento @map("em andamento")
+  pendente
+  conclu_do    @map("concluído")
+  recusado
+
+  @@schema("public")
+}
+
+enum status_usuario {
+  ativo
+  inativo
+  suspenso
+
+  @@schema("public")
+}
