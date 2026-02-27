@@ -26,18 +26,16 @@ import {
   controleEmpenhosApi,
   ItemControleEmpenho,
   DashboardControleResponse,
-  formatMesanoMMYYYY,
   getConsumoHeaders,
   ControleEmpenhosResponse,
 } from '../api/client';
-import { formatDate } from '../utils/date';
+import { formatDate, parseDate } from '../utils/date';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 import {
-  formatarIntThousands,
   formatarDecimal,
-  formatarMesano,
   renderizarColunasControle,
   DadosColunasControleRender,
+  ColunaPreEmpenhoCell,
 } from '../utils/columnRenderers';
 
 const PAGE_SIZE_OPTIONS = [30, 50, 100] as const;
@@ -258,15 +256,6 @@ export function ControleEmpenhos() {
   const hasDirty = selectedId != null && editValues[selectedId];
 
   const consumoHeaders = useMemo(() => getConsumoHeaders(mesesConsumo), [mesesConsumo]);
-  const consumoValues = (item: ItemControleEmpenho) => [
-    item.consumoMesMinus6,
-    item.consumoMesMinus5,
-    item.consumoMesMinus4,
-    item.consumoMesMinus3,
-    item.consumoMesMinus2,
-    item.consumoMesMinus1,
-    item.consumoMesAtual,
-  ];
 
   return (
     <Box>
@@ -421,8 +410,8 @@ export function ControleEmpenhos() {
                   <Th isNumeric>Estoque almox.</Th>
                   <Th isNumeric>Estoque geral</Th>
                   <Th isNumeric>Saldo empenhos</Th>
-                  <Th>Pré-empenho</Th>
                   <Th>Cobertura estoque</Th>
+                  <Th>Pré-empenho</Th>
                   <Th>Registro</Th>
                   <Th>Vigência</Th>
                   <Th isNumeric>Saldo registro</Th>
@@ -457,7 +446,6 @@ export function ControleEmpenhos() {
                 {!loading && itens.map((item) => {
                   const isSelected = selectedId === item.id;
                   const edits = editValues[item.id] ?? {};
-                  const consumos = consumoValues(item);
                   
                   // Preparar dados para renderizadores de colunas 6-12
                   const dadosColunasRender: DadosColunasControleRender = {
@@ -495,13 +483,15 @@ export function ControleEmpenhos() {
                       {/* Colunas 6-12: Renderizadas com formatação e cores */}
                       {colunasRenderizadas}
                       
-                      {/* Colunas após as colunas de consumo/indicadores (19 em diante) */}
-                      <Td>{item.numeroPreEmpenho ?? '-'}</Td>
+                      {/* Coluna Pré-empenho */}
+                      <ColunaPreEmpenhoCell numeroPreEmpenho={item.numeroPreEmpenho} />
+                      
+                      {/* Colunas após as colunas de consumo/indicadores (20 em diante) */}
                       <Td>{item.registroMaster ?? '-'}</Td>
-                      <Td style={{ textAlign: 'center' }}>{item.vigenciaRegistro ? formatDate(new Date(item.vigenciaRegistro), 'dd/mm/yyyy') : '-'}</Td> 
-                      <Td isNumeric>{formatarDecimal(item.saldoRegistro)}</Td>
-                      <Td isNumeric>{formatarDecimal(item.valorUnitRegistro)}</Td>
-                      {/* Qtde/emb.: editável quando checkbox selecionado */}
+                      <Td style={{ textAlign: 'center' }}>{item.vigenciaRegistro ? (() => { const d = parseDate(item.vigenciaRegistro); return d ? formatDate(d, 'dd/MM/yyyy') : '-'; })() : '-'}</Td>                       
+                      <Td isNumeric>{item.saldoRegistro != null ? formatarDecimal(item.saldoRegistro, 0) : '-'}</Td>
+                      {/*<Td isNumeric>{formatarDecimal(item.valorUnitRegistro)}</Td>VALOR MONETÁRIO*/}                      
+                      <Td isNumeric>{item.valorUnitRegistro != null ? "R$" + formatarDecimal(item.valorUnitRegistro) : '-'}</Td>
                       <Td isNumeric>
                         {isSelected ? (
                           <Input

@@ -1,5 +1,4 @@
 import { getDwPool, getDwSchema } from '../utils/dwPool';
-import { getAlmoxarifadosPermitidos } from './movimentoRepository';
 
 /** Coluna de material na view v_df_consumo_estoque (ex.: codigo_padronizado). Exibida integralmente. */
 const MATERIAL_COL = process.env.DW_MATERIAL_COLUMN || 'codigo_padronizado';
@@ -72,7 +71,7 @@ export async function getEstoqueESaldoPorMaterial(
   const view = `${schema}v_df_consumo_estoque`;
   const saldoCol = USE_SPEC ? 'qtde_a_receber' : 'saldo_empenhos';
   const nrCol = USE_SPEC ? 'numero_do_registro' : 'numero_registro';
-  const vigCol = USE_SPEC ? 'fim_vigencia' : 'vigencia';
+  const vigCol = 'fim_vigencia'; // Sempre usar fim_vigencia conforme especificação
   // Registros ainda vigentes: fim da vigência >= hoje; quando USE_SPEC exige saldo de registro > 0
   const vigenciaCond = `((${vigCol}::date >= CURRENT_DATE) OR (${vigCol} IS NULL))`;
   const saldoRegistroCond = USE_SPEC
@@ -132,12 +131,12 @@ export async function getTodosRegistrosAtivos(): Promise<RegistroAtivoRow[]> {
   const view = `${schema}v_df_consumo_estoque`;
   const saldoCol = USE_SPEC ? 'qtde_a_receber' : 'saldo_empenhos';
   const nrCol = USE_SPEC ? 'numero_do_registro' : 'numero_registro';
-  const vigCol = USE_SPEC ? 'fim_vigencia' : 'vigencia';
+  const vigCol = 'fim_vigencia'; // Sempre usar fim_vigencia conforme especificação
   const registroAtivoColRef =
     /^[a-z_][a-z0-9_]*$/i.test(REGISTRO_ATIVO_COL.trim()) ? REGISTRO_ATIVO_COL.trim() : `"${REGISTRO_ATIVO_COL.replace(/"/g, '').trim()}"`;
   const whereRegistroAtivo =
     `UPPER(TRIM(COALESCE(${registroAtivoColRef}::text, ''))) = 'SIM'`;
-  const whereClause = USE_REGISTRO_ATIVO_COL ? `WHERE ${whereRegistroAtivo}` : 'WHERE 1=1';
+  const whereClause = USE_REGISTRO_ATIVO_COL ? `WHERE ${whereRegistroAtivo}` : '';
   const buildQuery = (where: string) => `
     SELECT
       ${MATERIAL_COL_REF}::text AS material,
@@ -168,7 +167,8 @@ export async function getTodosRegistrosAtivos(): Promise<RegistroAtivoRow[]> {
     let res = await pool.query(buildQuery(whereClause));
     if (res.rows.length === 0 && USE_REGISTRO_ATIVO_COL) {
       try {
-        res = await pool.query(buildQuery('WHERE 1=1'));
+        const fallbackWhere = '';
+        res = await pool.query(buildQuery(fallbackWhere));
       } catch (fallbackErr) {
         console.warn('[provisionamento] Fallback WHERE 1=1 falhou:', (fallbackErr as Error).message);
       }
@@ -186,7 +186,8 @@ export async function getTodosRegistrosAtivos(): Promise<RegistroAtivoRow[]> {
     }
     if (USE_REGISTRO_ATIVO_COL) {
       try {
-        const res = await pool.query(buildQuery('WHERE 1=1'));
+        const fallbackWhere = '';
+        const res = await pool.query(buildQuery(fallbackWhere));
         console.warn('[provisionamento] Retornando todos os registros (sem filtro registro_ativo).');
         return mapRows(res.rows);
       } catch (fallbackErr) {
@@ -362,20 +363,17 @@ export async function getTotaisEstoqueSaldoPorMasters(
   const saldoCol = USE_SPEC ? 'qtde_a_receber' : 'saldo_empenhos';
   const variantesList = masters.map((m) => variantesCodigoMaterial(m));
   const allVariantes = [...new Set(variantesList.flat())];
-  const almoxPermitidos = getAlmoxarifadosPermitidos();
   const placeholders = allVariantes.map((_, i) => `$${i + 1}`).join(', ');
-  const almoxPlaceholders = almoxPermitidos.map((_, i) => `$${allVariantes.length + i + 1}`).join(', ');
   const query = `
     SELECT ${MATERIAL_PREFIX_EXPR} AS master_code,
       COALESCE(SUM(qtde_em_estoque::numeric), 0) AS estoque_almoxarifados,
       COALESCE(SUM(${saldoCol}::numeric), 0) AS saldo_empenhos
     FROM ${view}
     WHERE ${MATERIAL_PREFIX_EXPR} IN (${placeholders})
-      AND TRIM(COALESCE(alm_nome::text, '')) IN (${almoxPlaceholders})
     GROUP BY ${MATERIAL_PREFIX_EXPR}
   `;
   try {
-    const res = await pool.query(query, [...allVariantes, ...almoxPermitidos]);
+    const res = await pool.query(query, allVariantes);
     const map = new Map<string, { estoqueAlmoxarifados: number; saldoEmpenhos: number }>();
     for (const r of res.rows as Record<string, unknown>[]) {
       const master = String(r.master_code ?? '').trim();
@@ -406,7 +404,7 @@ export async function getEstoqueESaldoPorMasters(
   const view = `${schema}v_df_consumo_estoque`;
   const saldoCol = USE_SPEC ? 'qtde_a_receber' : 'saldo_empenhos';
   const nrCol = USE_SPEC ? 'numero_do_registro' : 'numero_registro';
-  const vigCol = USE_SPEC ? 'fim_vigencia' : 'vigencia';
+  const vigCol = 'fim_vigencia'; // Sempre usar fim_vigencia conforme especificação
   const vigenciaCond = `((${vigCol}::date >= CURRENT_DATE) OR (${vigCol} IS NULL))`;
   const saldoRegistroCond = USE_SPEC ? 'AND (COALESCE(qtde_a_empenhar::numeric, 0) > 0)' : '';
   const variantesList = masters.map((m) => variantesCodigoMaterial(m));
@@ -420,7 +418,8 @@ export async function getEstoqueESaldoPorMasters(
       valor_unitario::numeric AS valor_unitario
       ${USE_SPEC ? ', COALESCE(qtde_a_empenhar::numeric, 0) AS saldo_registro' : ''}
     FROM ${view}
-    WHERE ${MATERIAL_PREFIX_EXPR} IN (${placeholders}) AND ${vigenciaCond} ${saldoRegistroCond}
+    WHERE ${MATERIAL_PREFIX_EXPR} IN (${placeholders})
+      AND ${vigenciaCond} ${saldoRegistroCond}
   `;
   try {
     const res = await pool.query(query, allVariantes);

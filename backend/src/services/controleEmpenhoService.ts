@@ -89,16 +89,21 @@ function calcularMediaConsumo6MesesAnteriores(
 
 function calcularCobertura(
   estoqueAlmox: number,
-  saldoEmpenhos: number,
   mediaConsumo: number
 ): number | null {
   // Validar estoques
   const estoqueAlmoxValidado = validarEstoque(estoqueAlmox);
-  const saldoEmpenhoValidado = validarEstoque(saldoEmpenhos);
   const mediaValidada = validarConsumo(mediaConsumo);
-  
+
   if (mediaValidada <= 0) return null;
-  return (estoqueAlmoxValidado + saldoEmpenhoValidado) / mediaValidada;
+  const cobertura = estoqueAlmoxValidado / mediaValidada;
+
+  // Log para debug se cobertura parecer estoque (ex.: cobertura === estoque)
+  if (cobertura === estoqueAlmoxValidado && estoqueAlmoxValidado > 0) {
+    console.warn(`[Cobertura] Possível erro: estoque=${estoqueAlmoxValidado}, media=${mediaValidada}, cobertura=${cobertura} (igual ao estoque)`);
+  }
+
+  return cobertura;
 }
 
 function definirStatus(cobertura: number | null, comRegistro: boolean): StatusItem {
@@ -326,9 +331,16 @@ export const controleEmpenhoService = {
       const mediaConsumo6Meses = mediaConsumoMov;
       const cobertura = calcularCobertura(
         totais.estoqueAlmoxarifados,
-        totais.saldoEmpenhos,
         mediaConsumo6Meses
       );
+
+      // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum)
+      if (cobertura === totais.estoqueAlmoxarifados && totais.estoqueAlmoxarifados > 0) {
+        console.error(`[BUG DETECTADO] Cobertura igual ao estoque para master ${masterCode}: estoque=${totais.estoqueAlmoxarifados}, media=${mediaConsumo6Meses}, cobertura=${cobertura}`);
+        // Forçar recalculo ou setar null para evitar exibição errada
+        // Aqui podemos forçar null ou logar para correção
+      }
+
       const comRegistro = registros.length > 0;
       const status = definirStatus(cobertura, comRegistro);
       
@@ -543,9 +555,14 @@ export const controleEmpenhoService = {
         const media = calcularMediaConsumo6MesesAnteriores(consumos, mesanoAtual);
         const cobertura = calcularCobertura(
           totais.estoqueAlmoxarifados,
-          totais.saldoEmpenhos,
           media
         );
+
+        // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum)
+        if (cobertura === totais.estoqueAlmoxarifados && totais.estoqueAlmoxarifados > 0) {
+          console.error(`[BUG DETECTADO] Cobertura igual ao estoque para master ${masterItem}: estoque=${totais.estoqueAlmoxarifados}, media=${media}, cobertura=${cobertura}`);
+        }
+
         const comRegistro = registros.length > 0;
         const status = definirStatus(cobertura, comRegistro);
         

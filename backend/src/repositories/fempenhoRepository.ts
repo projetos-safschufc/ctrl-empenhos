@@ -11,7 +11,7 @@ const _dwSchema = (process.env.DW_SCHEMA || 'public').toLowerCase();
 const _defaultFemMaterialCol = _dwSchema === 'gad_dlih_safs' ? 'cd_material' : 'mat_cod_antigo';
 const FEM_MATERIAL_COL = process.env.DW_FEMPNUM_MATERIAL_COLUMN || process.env.DW_MATERIAL_COLUMN || _defaultFemMaterialCol;
 const FEM_PRE_COL = process.env.DW_FEMPNUM_COLUMN || 'numero_pre_empenho';
-const FEM_COD_PRE_COL = process.env.DW_FEMPNUM_CODIGO_PRE_COLUMN || 'codigo_pre_empenho';
+const FEM_COD_PRE_COL = process.env.DW_FEMPNUM_CODIGO_PRE_COLUMN || 'cd_empenho';
 /** Relacionamento: cd_material == codigo_padronizado (plano); match por código antes de "-". */
 const FEM_MATERIAL_COL_REF = quoteId(FEM_MATERIAL_COL);
 const FEM_COD_PRE_COL_REF = quoteId(FEM_COD_PRE_COL);

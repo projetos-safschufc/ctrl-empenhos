@@ -25,6 +25,7 @@ import {
   LinhaProvisionamentoRegistroAtivo,
 } from '../api/client';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
+import { parseDate } from '../utils/date';
 
 /** Linha da tabela virtual de provisionamento (um material + um registro) */
 type LinhaProvisionamento = LinhaProvisionamentoRegistroAtivo;
@@ -420,11 +421,7 @@ export function Provisionamento() {
 
                         <Td>
                           {linha.vigencia
-                            ? new Date(linha.vigencia).toLocaleDateString('pt-BR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                              })
+                            ? (() => { const d = parseDate(linha.vigencia); return d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '--/--/----'; })()
                             : '--/--/----'}
                         </Td>
 

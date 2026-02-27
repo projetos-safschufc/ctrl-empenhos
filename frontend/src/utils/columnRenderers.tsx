@@ -143,7 +143,7 @@ export function ColunaEstoqueCell({
   label?: string;
 }): JSX.Element {
   const valor = Number(estoque) || 0;
-  const texto = formatarIntThousands(valor);
+  const texto = valor === 0 ? '-' : formatarIntThousands(valor);
 
   let bg = 'gray.50';
   if (valor > 0) {
@@ -160,9 +160,28 @@ export function ColunaEstoqueCell({
 }
 
 /**
- * Renderiza célula de cobertura (dias de consumo).
- * Cálculo: (Estoque Almox + Saldo Empenhos) / Média Consumo.
- * 
+ * Renderiza célula de pré-empenho.
+ * Exibe o código do pré-empenho ou "-" se não houver.
+ */
+export function ColunaPreEmpenhoCell({
+  numeroPreEmpenho,
+}: {
+  numeroPreEmpenho: string | null | undefined;
+}): JSX.Element {
+  const texto = numeroPreEmpenho || '-';
+  const bg = numeroPreEmpenho ? 'blue.50' : 'gray.50';
+
+  return (
+    <Td bg={bg} title={`Pré-empenho: ${texto}`}>
+      <Text fontWeight="medium">{texto}</Text>
+    </Td>
+  );
+}
+
+/**
+ * Renderiza célula de cobertura (dias de estoque).
+ * Cálculo: Estoque Almoxarifados / Média Consumo 6 meses.
+ *
  * Cores de criticidade:
  * - Vermelho (< 1): < 1 dia (CRÍTICO)
  * - Amarelo (1-3): 1-3 dias (ATENÇÃO)
@@ -297,7 +316,7 @@ export function renderizarColunasControle(dados: DadosColunasControleRender): JS
     />
   );
 
-  // Coluna 19: Cobertura (calculada)
+  // Coluna 19: Cobertura (estoque almox / média 6 meses)
   elementos.push(
     <ColunaCoberturaCellFormatted
       key="cobertura"
