@@ -79,7 +79,9 @@ export const catalogoRepository = {
       select: { master: true, descricao: true },
     });
     const map = new Map<string, string | null>();
-    for (const it of items) map.set(it.master, it.descricao);
+    for (const it of items) {
+      if (it.master != null) map.set(it.master, it.descricao);
+    }
     for (const m of uniq) if (!map.has(m)) map.set(m, null);
     return map;
   },

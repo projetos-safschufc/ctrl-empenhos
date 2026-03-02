@@ -212,23 +212,21 @@ export const analyticsService = {
           WHERE created_at >= NOW() - INTERVAL '24 hours'
             AND user_id IS NOT NULL
         `,
-        
         // Logins de hoje
         prisma.$queryRaw<[{ count: bigint }]>`
           SELECT COALESCE(SUM(activity_count), 0) as count
           FROM ctrl.user_activity_metrics 
           WHERE activity_type = 'login' 
-            AND activity_date = $1::date
+            AND activity_date = ${today}::date
         `,
-        
         // Exports de hoje
         prisma.$queryRaw<[{ count: bigint }]>`
           SELECT COALESCE(SUM(activity_count), 0) as count
           FROM ctrl.user_activity_metrics 
           WHERE activity_type = 'data_export' 
-            AND activity_date = $1::date
+            AND activity_date = ${today}::date
         `
-      ], [today, today]);
+      ]);
 
       return {
         activeUsers: Number(activeUsersResult[0]?.count || 0),

@@ -1,18 +1,16 @@
 /**
  * Rotas para Gerenciamento de Cache
- * 
- * Endpoints administrativos para monitoramento e controle do cache
- * Restrito a usuários autenticados (ambiente INTRANET)
+ * Restrito a usuários autenticados com perfil admin (ambiente INTRANET).
  */
 
 import { Router } from 'express';
 import { authenticate } from '../middlewares/authenticate';
+import { requireAdmin } from '../middlewares/requireAdmin';
 import { cacheController } from '../controllers/cacheController';
 
 const router = Router();
 
-// Aplicar autenticação a todas as rotas de cache
-router.use(authenticate);
+router.use(authenticate, requireAdmin);
 
 // Estatísticas do cache
 router.get('/stats', cacheController.getStats);

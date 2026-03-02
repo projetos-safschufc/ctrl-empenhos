@@ -114,6 +114,12 @@ Na raiz do projeto (`package.json`):
 
 Consulte também `backend/README.md` e `frontend/README.md` para detalhes de cada parte.
 
+## Documentação
+
+- **[Manual de Uso](docs/MANUAL_DE_USO.md)** — Tutorial e guia para usuários finais (telas, filtros, botões e fluxos).
+- **Implementações e correções** — Em `docs/` (ex.: implementação Lista de Empenhos, Adicionar Observações, correções de filtros).
+- **Avaliação de limpeza e manual** — `docs/AVALIACAO_LIMPEZA_E_MANUAL.md`.
+
 ## Estrutura do Backend
 
 - `backend/src/config` – configuração (DB, env, DW)

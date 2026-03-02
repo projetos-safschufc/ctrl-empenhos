@@ -13,25 +13,18 @@ import { getNumeroPreEmpenhoPorMastersERegistros } from '../repositories/empenho
 import { getEstoqueGeralPorMasters } from '../repositories/estoqueRepository';
 import { histCtrlEmpenhoRepository } from '../repositories/histCtrlEmpenhoRepository';
 import { memoryCache, CacheKeys, CacheTTL } from '../utils/memoryCache';
+import { validarConsumo, validarEstoque, logColunasControle } from '../utils/columnFormatters';
 import {
-  validarConsumo,
-  calcularMediaConsumoValidos,
-  validarEstoque,
-  logColunasControle,
-} from '../utils/columnFormatters';
+  getMesesParaColunasConsumo,
+  calcularMediaConsumo6MesesAnteriores,
+  calcularCobertura,
+  definirStatus,
+  consumoPorMesano,
+  filtrarRegistrosParaExibicao,
+  type StatusItem,
+} from './controleEmpenho/calculos';
 
-export type StatusItem = 'Normal' | 'Atenção' | 'Crítico';
-
-/** Meses para colunas de consumo: [mês atual -6, ..., mês atual -1, mês atual] */
-export function getMesesParaColunasConsumo(): number[] {
-  const now = new Date();
-  const meses: number[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    meses.push(d.getFullYear() * 100 + (d.getMonth() + 1));
-  }
-  return meses;
-}
+export type { StatusItem };
 
 export interface ItemControleEmpenho {
   id: number;
@@ -69,92 +62,6 @@ export interface ItemControleEmpenho {
   observacao: string | null;
   comRegistro: boolean;
   registros: RegistroConsumoEstoque[];
-}
-
-/** Média apenas dos 6 meses anteriores (mês atual -6 a -1), só meses com consumo > 0 */
-function calcularMediaConsumo6MesesAnteriores(
-  consumosPorMes: { mesano: number; total: number }[],
-  mesanoAtual: number
-): number {
-  const anteriores = consumosPorMes
-    .filter((c) => c.mesano < mesanoAtual)
-    .map((c) => validarConsumo(c.total))
-    .filter((total) => total > 0);
-  
-  if (anteriores.length === 0) return 0;
-  
-  // Usar função validada
-  return calcularMediaConsumoValidos(anteriores);
-}
-
-function calcularCobertura(
-  estoqueAlmox: number,
-  mediaConsumo: number
-): number | null {
-  // Validar estoques
-  const estoqueAlmoxValidado = validarEstoque(estoqueAlmox);
-  const mediaValidada = validarConsumo(mediaConsumo);
-
-  if (mediaValidada <= 0) return null;
-  const cobertura = estoqueAlmoxValidado / mediaValidada;
-
-  // Log para debug se cobertura parecer estoque (ex.: cobertura === estoque)
-  if (cobertura === estoqueAlmoxValidado && estoqueAlmoxValidado > 0) {
-    console.warn(`[Cobertura] Possível erro: estoque=${estoqueAlmoxValidado}, media=${mediaValidada}, cobertura=${cobertura} (igual ao estoque)`);
-  }
-
-  return cobertura;
-}
-
-function definirStatus(cobertura: number | null, comRegistro: boolean): StatusItem {
-  if (!comRegistro) return 'Crítico';
-  if (cobertura == null) return 'Normal';
-  if (cobertura < 1) return 'Crítico';
-  if (cobertura < 3) return 'Atenção';
-  return 'Normal';
-}
-
-function consumoPorMesano(consumos: { mesano: number; total: number }[]): Record<number, number> {
-  const map: Record<number, number> = {};
-  for (const c of consumos) map[c.mesano] = c.total;
-  return map;
-}
-
-/**
- * Regra de exibição de dados de registro na tela Controle de Empenhos:
- * exibir apenas quando numero_do_registro != "-" AND fim_vigência > TODAY() AND qtde_a_empenhar > 0.
- * vigencia no DW é fim_vigência; qtde_a_empenhar é mapeada para saldo_registro quando USE_SPEC.
- */
-function filtrarRegistrosParaExibicao(registros: RegistroConsumoEstoque[]): RegistroConsumoEstoque[] {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  return registros.filter((reg) => {
-    const nr = reg.numero_registro != null ? String(reg.numero_registro).trim() : '';
-    if (nr === '' || nr === '-') return false;
-    const vigencia = reg.vigencia != null ? String(reg.vigencia).trim() : '';
-    if (vigencia === '') return false;
-    const fimVigencia = parseDate(vigencia);
-    if (!fimVigencia || fimVigencia <= hoje) return false;
-    const qtdeAEmpenhar = reg.saldo_registro ?? 0;
-    if (qtdeAEmpenhar <= 0) return false;
-    return true;
-  });
-}
-
-function parseDate(str: string): Date | null {
-  if (!str || typeof str !== 'string') return null;
-  const trimmed = str.trim();
-  if (!trimmed) return null;
-  const dmY = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (dmY) {
-    const day = parseInt(dmY[1], 10);
-    const month = parseInt(dmY[2], 10) - 1;
-    const year = parseInt(dmY[3], 10);
-    const d = new Date(year, month, day);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  const d = new Date(trimmed);
-  return isNaN(d.getTime()) ? null : d;
 }
 
 export const controleEmpenhoService = {
@@ -334,11 +241,15 @@ export const controleEmpenhoService = {
         mediaConsumo6Meses
       );
 
-      // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum)
+      // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum).
+      // Em produção, apenas registra quando DEBUG=true para não poluir os logs.
       if (cobertura === totais.estoqueAlmoxarifados && totais.estoqueAlmoxarifados > 0) {
-        console.error(`[BUG DETECTADO] Cobertura igual ao estoque para master ${masterCode}: estoque=${totais.estoqueAlmoxarifados}, media=${mediaConsumo6Meses}, cobertura=${cobertura}`);
-        // Forçar recalculo ou setar null para evitar exibição errada
-        // Aqui podemos forçar null ou logar para correção
+        if (process.env.DEBUG === 'true') {
+          console.error(
+            `[BUG DETECTADO] Cobertura igual ao estoque para master ${masterCode}: estoque=${totais.estoqueAlmoxarifados}, media=${mediaConsumo6Meses}, cobertura=${cobertura}`
+          );
+        }
+        // Mantemos a cobertura calculada; o log serve apenas para investigação.
       }
 
       const comRegistro = registros.length > 0;
@@ -560,7 +471,11 @@ export const controleEmpenhoService = {
 
         // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum)
         if (cobertura === totais.estoqueAlmoxarifados && totais.estoqueAlmoxarifados > 0) {
-          console.error(`[BUG DETECTADO] Cobertura igual ao estoque para master ${masterItem}: estoque=${totais.estoqueAlmoxarifados}, media=${media}, cobertura=${cobertura}`);
+          if (process.env.DEBUG === 'true') {
+            console.error(
+              `[BUG DETECTADO] Cobertura igual ao estoque para master ${masterItem}: estoque=${totais.estoqueAlmoxarifados}, media=${media}, cobertura=${cobertura}`
+            );
+          }
         }
 
         const comRegistro = registros.length > 0;

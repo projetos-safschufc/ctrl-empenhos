@@ -77,13 +77,14 @@ function filtrarRegistrosProvisionamento(registros: RegistroConsumoEstoque[]): R
 export const provisionamentoService = {
   async getDadosPorMaterial(codigoMaterial: string): Promise<DadosProvisionamentoMaterial | null> {
     const material = await catalogoRepository.findByCodigoOuDescricao(codigoMaterial.trim());
-    if (!material) return null;
+    if (!material || material.master == null) return null;
 
+    const master = material.master;
     const meses = getMesesUltimos6();
     const [consumos, totais, registros] = await Promise.all([
-      getConsumosPorMaterialEMeses(material.master, meses),
-      getTotaisEstoqueSaldo(material.master),
-      getEstoqueESaldoPorMaterial(material.master),
+      getConsumosPorMaterialEMeses(master, meses),
+      getTotaisEstoqueSaldo(master),
+      getEstoqueESaldoPorMaterial(master),
     ]);
 
     const mediaConsumo = calcularMedia(consumos);
@@ -94,7 +95,7 @@ export const provisionamentoService = {
     const registrosFiltrados = filtrarRegistrosProvisionamento(registros);
 
     return {
-      codigo: material.master,
+      codigo: master,
       descricao: material.descricao,
       mediaConsumo,
       estoqueAlmoxarifados: totais.estoqueAlmoxarifados,
@@ -114,7 +115,7 @@ export const provisionamentoService = {
     const rows = await getTodosRegistrosAtivos();
     if (rows.length === 0) return [];
 
-    const materials = [...new Set(rows.map((r) => r.material))];
+    const materials = [...new Set(rows.map((r) => r.material).filter((m): m is string => m != null))];
     const [descricoesMap, consumosByMaterial] = await Promise.all([
       catalogoRepository.findDescricoesByMasters(materials),
       getConsumosPorMastersEMeses(materials, meses),
@@ -123,6 +124,7 @@ export const provisionamentoService = {
     const result: LinhaProvisionamentoRegistroAtivo[] = [];
     let idx = 0;
     for (const r of rows) {
+      if (r.material == null) continue;
       const consumos = consumosByMaterial.get(r.material) ?? [];
       const mediaConsumo =
         r.media_consumo_6m != null ? r.media_consumo_6m : calcularMedia(consumos);

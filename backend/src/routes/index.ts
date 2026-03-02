@@ -7,6 +7,9 @@ import empenhosPendentesRoutes from './empenhosPendentesRoutes';
 import cacheRoutes from './cacheRoutes';
 import analyticsRoutes from './analyticsRoutes';
 import auditRoutes from './auditRoutes';
+import recebimentoNotaFiscalRoutes from './recebimentoNotaFiscalRoutes';
+import nfEmpenhoRoutes from './nfEmpenhoRoutes';
+import nfObsRoutes from './nfObsRoutes';
 
 const router = Router();
 
@@ -22,5 +25,8 @@ router.use('/empenhos-pendentes', empenhosPendentesRoutes);
 router.use('/cache', cacheRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/audit', auditRoutes);
+router.use('/recebimento-notas-fiscais', recebimentoNotaFiscalRoutes);
+router.use('/nf-empenho', nfEmpenhoRoutes);
+router.use('/nf-obs', nfObsRoutes);
 
 export default router;

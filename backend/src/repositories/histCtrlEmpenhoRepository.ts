@@ -31,7 +31,7 @@ function toDecimalValue(value: number | undefined): number | undefined {
 export const histCtrlEmpenhoRepository = {
   create(data: CreateHistPayload) {
     const payload: Parameters<typeof prisma.histCtrlEmpenho.create>[0]['data'] = {
-      materialId: data.material_id,
+      materialId: String(data.material_id),
       usuarioId: data.usuario_id,
     };
     if (data.classificacao !== undefined) payload.classificacao = data.classificacao;
@@ -60,12 +60,13 @@ export const histCtrlEmpenhoRepository = {
     return row;
   },
 
-  /** Último registro de histórico por material para vários ids em uma consulta. */
+  /** Último registro de histórico por material para vários ids em uma consulta.
+   * Prisma model usa materialId como String; sempre passar ids como string[] para evitar erro de tipo. */
   async findLastByMaterialIds(
     materialIds: (number | string)[]
   ): Promise<Map<string, Awaited<ReturnType<typeof this.findLastByMaterialId>>>> {
     if (materialIds.length === 0) return new Map();
-    const ids = [...new Set(materialIds.map(id => String(id)))];
+    const ids: string[] = [...new Set(materialIds.map((id) => String(id)))];
     const rows = await prisma.histCtrlEmpenho.findMany({
       where: { materialId: { in: ids } },
       orderBy: { id: 'desc' },

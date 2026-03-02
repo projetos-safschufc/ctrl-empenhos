@@ -1,17 +1,22 @@
 import express from 'express';
+import 'express-async-errors';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 import routes from './routes';
 import { sendError, ErrorCode } from './utils/errorResponse';
+import { getCorsOptions } from './config/cors';
 
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
+app.use(cors(getCorsOptions()));
 app.use(express.json());
 
-const PORT = parseInt(process.env.PORT || '3001');
+const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 app.get('/health', (_req, res) => {
@@ -25,37 +30,41 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   sendError(res, 500, ErrorCode.INTERNAL_ERROR, 'Erro interno do servidor');
 });
 
-/**
- * Tenta iniciar o servidor em uma porta.
- * Se estiver em uso, tenta próximas portas automaticamente.
- */
 function startServer(port: number, host: string): void {
   const server = app.listen(port, host, () => {
-    const hasDbUrl = !!process.env.DATABASE_URL;
-    // detectar IP de rede para escrever URL amigável para outros hosts
-    const os = require('os');
-    const nets = os.networkInterfaces();
+    const hasDbUrl = !!process.env.DATABASE_URL || !!(process.env.DB_HOST && process.env.DB_USER);
     let publicIp: string | null = null;
-    for (const name of Object.keys(nets)) {
-      for (const net of nets[name]) {
-        if (net.family === 'IPv4' && !net.internal) {
-          publicIp = net.address;
-          break;
+    const nets = os.networkInterfaces();
+    if (nets) {
+      for (const name of Object.keys(nets)) {
+        const list = nets[name];
+        if (list) {
+          for (const net of list) {
+            if (net.family === 'IPv4' && !net.internal) {
+              publicIp = net.address;
+              break;
+            }
+          }
         }
+        if (publicIp) break;
       }
-      if (publicIp) break;
     }
     const displayHost = publicIp || host || 'localhost';
     console.log(`🚀 Servidor rodando em http://${displayHost}:${port} (DB: ${hasDbUrl ? 'configurada' : 'não definida'})`);
-    // Salvar porta/URL em .env.local para frontend consumir
-    const fs = require('fs');
-    const path = require('path');
-    const envLocalPath = path.join(__dirname, '../../.env.local');
-    const backendUrl = `http://${displayHost}:${port}`;
-    try {
-      fs.writeFileSync(envLocalPath, `VITE_BACKEND_PORT=${port}\nVITE_BACKEND_URL=${backendUrl}`);
-    } catch (e) {
-      console.warn('Não foi possível escrever .env.local:', e.message || e);
+    if (process.env.NODE_ENV !== 'production') {
+      const envLocalPath = path.join(__dirname, '../../.env.local');
+      const frontendEnvLocalPath = path.join(__dirname, '../../frontend/.env.local');
+      const backendUrl = `http://${displayHost}:${port}`;
+      try {
+        const content = `VITE_BACKEND_PORT=${port}\nVITE_BACKEND_URL=${backendUrl}\n`;
+        // Mantém compatibilidade com scripts/ops no root do projeto
+        fs.writeFileSync(envLocalPath, content);
+        // Permite que o Vite leia automaticamente (frontend/.env.local)
+        fs.writeFileSync(frontendEnvLocalPath, content);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn('Não foi possível escrever .env.local:', msg);
+      }
     }
   }).on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {

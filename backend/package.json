@@ -13,6 +13,7 @@
     "prisma:studio": "prisma studio",
     "seed": "ts-node prisma/seed.ts",
     "db:init": "node scripts/run-init-ctrl-schema.js",
+    "db:init-nf": "node scripts/run-init-nf-schema.js",
     "db:fix-users-columns": "node scripts/run-fix-users-columns.js",
     "db:fix-catalogo-columns": "node scripts/run-fix-catalogo-columns.js",
     "db:fix-hist-empenho-columns": "node scripts/run-fix-hist-empenho-columns.js",
@@ -29,7 +30,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "express-async-errors": "^3.1.1",
     "jsonwebtoken": "^9.0.2",
+    "zod": "^3.23.8",
     "pdfkit": "^0.15.0",
     "pg": "^8.13.0"
   },

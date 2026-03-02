@@ -1,4 +1,4 @@
-import { ChakraProvider } from '@chakra-ui/react';
+import { Box, ChakraProvider, Divider } from '@chakra-ui/react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppCacheProvider } from './contexts/AppCacheContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -13,6 +13,10 @@ import { Provisionamento } from './pages/Provisionamento';
 import { MovimentacaoDiaria } from './pages/MovimentacaoDiaria';
 import { EmpenhosPendentes } from './pages/EmpenhosPendentes';
 import { AnalyticsDashboard } from './pages/AnalyticsDashboard';
+import { ListaEmpenhos } from './pages/plataforma/ListaEmpenhos';
+import { ListaRecebimentos } from './pages/plataforma/ListaRecebimentos';
+import { AdicionarObservacoes } from './pages/plataforma/AdicionarObservacoes';
+import { EditarRecebimento } from './pages/plataforma/EditarRecebimento';
 import theme from './theme';
 
 export default function App() {
@@ -38,7 +42,11 @@ export default function App() {
               <Route path="movimentacao-diaria" element={<MovimentacaoDiaria />} />
               <Route path="empenhos-pendentes" element={<EmpenhosPendentes />} />
               <Route path="provisionamento" element={<Provisionamento />} />
-              <Route path="analytics" element={<AnalyticsDashboard />} />
+              <Route path="analytics" element={<AnalyticsDashboard />} />     
+              <Route path="plataforma/lista-empenhos" element={<ListaEmpenhos />} />
+              <Route path="plataforma/lista-recebimentos" element={<ListaRecebimentos />} />
+              <Route path="plataforma/adicionar-observacoes" element={<AdicionarObservacoes />} />
+              <Route path="plataforma/editar-recebimento" element={<EditarRecebimento />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

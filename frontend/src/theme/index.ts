@@ -14,11 +14,16 @@ const theme = extendTheme({
       300: '#5EB9FF',
       400: '#30A6FF',
       500: '#0693E3',
-      //600: '#0575B8',
       600: '#145D50',
       700: '#04578D',
       800: '#033962',
       900: '#021B37',
+    },
+    plataforma: {
+      predominante: '#FFFFFF',
+      detalhePrincipal: '#8BC547',
+      detalheSecundario: '#145D50',
+      cinzaApoio: '#E5E5E5',
     },
   },
   styles: {

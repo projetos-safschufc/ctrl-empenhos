@@ -6,6 +6,7 @@
  */
 
 import { Request } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../utils/prisma';
 import { memoryCache } from '../utils/memoryCache';
 
@@ -475,25 +476,25 @@ export const auditService = {
       await prisma.auditLogs.create({
         data: {
           userId: alert.userId,
-          sessionId: null,
+          sessionId: undefined,
           action: 'SECURITY_ALERT',
           entityType: 'security_alert',
           entityId: alertId,
-          oldValues: null,
-          newValues: null,
-          ipAddress: alert.details.ipAddress as string || null,
-          userAgent: alert.details.userAgent as string || null,
-          endpoint: null,
-          httpMethod: null,
-          statusCode: null,
-          executionTimeMs: null,
+          oldValues: undefined,
+          newValues: undefined,
+          ipAddress: (alert.details.ipAddress as string) ?? undefined,
+          userAgent: (alert.details.userAgent as string) ?? undefined,
+          endpoint: undefined,
+          httpMethod: undefined,
+          statusCode: undefined,
+          executionTimeMs: undefined,
           metadata: {
             alertType: alert.type,
             severity: alert.severity,
             description: alert.description,
-            details: alert.details
-          }
-        }
+            details: alert.details as Prisma.InputJsonValue,
+          } as Prisma.InputJsonValue,
+        },
       });
 
     } catch (error) {

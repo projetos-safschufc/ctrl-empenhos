@@ -12,11 +12,11 @@ export interface DwConfig {
 
 export function getDwConfig(): DwConfig {
   return {
-    host: process.env.DW_HOST ?? process.env.DB_HOST ?? '10.28.0.159',
+    host: (process.env.DW_HOST ?? process.env.DB_HOST ?? 'localhost').trim(),
     port: parseInt(process.env.DW_PORT ?? process.env.DB_PORT ?? '5432', 10),
-    database: process.env.DW_DATABASE ?? 'dw',
-    user: process.env.DW_USER ?? process.env.DB_USER ?? 'abimael',
+    database: (process.env.DW_DATABASE ?? process.env.DB_DATABASE ?? 'postgres').trim(),
+    user: (process.env.DW_USER ?? process.env.DB_USER ?? 'postgres').trim(),
     password: normalizePassword(process.env.DW_PASSWORD ?? process.env.DB_PASSWORD ?? ''),
-    schema: process.env.DW_SCHEMA ?? 'public',
+    schema: (process.env.DW_SCHEMA ?? 'public').trim(),
   };
 }

@@ -1,4 +1,3 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   Heading,
@@ -18,19 +17,11 @@ import {
   Td,
   Checkbox,
   TableContainer,
-  useToast,
   Spinner,
   Flex,
 } from '@chakra-ui/react';
-import {
-  controleEmpenhosApi,
-  ItemControleEmpenho,
-  DashboardControleResponse,
-  getConsumoHeaders,
-  ControleEmpenhosResponse,
-} from '../api/client';
+import { useControleEmpenhos } from '../hooks/useControleEmpenhos';
 import { formatDate, parseDate } from '../utils/date';
-import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 import {
   formatarDecimal,
   renderizarColunasControle,
@@ -38,224 +29,38 @@ import {
   ColunaPreEmpenhoCell,
 } from '../utils/columnRenderers';
 
-const PAGE_SIZE_OPTIONS = [30, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 30;
-
-const DASHBOARD_KEY = CacheKeys.controleDashboard();
-
-function buildItensParams(
-  filtroCodigo: string,
-  filtroResponsavel: string,
-  filtroStatus: string,
-  filtroComRegistro: string,
-  page: number,
-  pageSize: number
-) {
-  return {
-    page,
-    pageSize,
-    codigo: filtroCodigo || undefined,
-    responsavel: filtroResponsavel || undefined,
-    status: filtroStatus || undefined,
-    comRegistro:
-      filtroComRegistro === 'true' ? true : filtroComRegistro === 'false' ? false : undefined,
-  };
-}
-
 export function ControleEmpenhos() {
-  const { getCached, setCached, invalidateControleEmpenhos } = useAppCache();
-  const [dashboard, setDashboard] = useState<DashboardControleResponse | null>(() =>
-    getCached<DashboardControleResponse>(DASHBOARD_KEY)
-  );
-  const [itens, setItens] = useState<ItemControleEmpenho[]>([]);
-  const [mesesConsumo, setMesesConsumo] = useState<number[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [loading, setLoading] = useState(true);
-  const [loadingDashboard, setLoadingDashboard] = useState(!getCached<DashboardControleResponse>(DASHBOARD_KEY));
-
-  const [filtroCodigo, setFiltroCodigo] = useState('');
-  const [filtroResponsavel, setFiltroResponsavel] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState<string>('');
-  const [filtroComRegistro, setFiltroComRegistro] = useState<string>('');
-
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [editValues, setEditValues] = useState<Record<number, { qtde_por_embalagem?: number; tipo_armazenamento?: string; capacidade_estocagem?: string; observacao?: string }>>({});
-  const [saving, setSaving] = useState(false);
-
-  const toast = useToast();
-
-  const loadDashboard = useCallback(
-    async (skipCache = false) => {
-      if (!skipCache) {
-        const cached = getCached<DashboardControleResponse>(DASHBOARD_KEY);
-        if (cached) {
-          setDashboard(cached);
-          setLoadingDashboard(false);
-          return;
-        }
-      }
-      setLoadingDashboard(true);
-      const { data, error } = await controleEmpenhosApi.getDashboard();
-      if (error) toast({ title: error, status: 'error' });
-      const next =
-        data && typeof data === 'object' && 'totalMateriais' in data ? data : null;
-      setDashboard(next);
-      if (next) setCached(DASHBOARD_KEY, next);
-      setLoadingDashboard(false);
-    },
-    [toast, getCached, setCached]
-  );
-
-  const loadItens = useCallback(
-    async (skipCache = false) => {
-      const params = buildItensParams(
-        filtroCodigo,
-        filtroResponsavel,
-        filtroStatus,
-        filtroComRegistro,
-        page,
-        pageSize
-      );
-      const itensKey = CacheKeys.controleItens(params);
-      if (!skipCache) {
-        const cached = getCached<ControleEmpenhosResponse>(itensKey);
-        if (cached) {
-          setItens(Array.isArray(cached.itens) ? cached.itens : []);
-          setMesesConsumo(Array.isArray(cached.mesesConsumo) ? cached.mesesConsumo : []);
-          setTotal(typeof cached.total === 'number' ? cached.total : 0);
-          setLoading(false);
-          return;
-        }
-      }
-      setLoading(true);
-      const { data, error } = await controleEmpenhosApi.getItens(params);
-      if (error) toast({ title: error, status: 'error' });
-      const itensList = Array.isArray(data?.itens) ? data.itens : [];
-      const meses = Array.isArray(data?.mesesConsumo) ? data.mesesConsumo : [];
-      const tot = typeof data?.total === 'number' ? data.total : 0;
-      setItens(itensList);
-      setMesesConsumo(meses);
-      setTotal(tot);
-      setCached(itensKey, { itens: itensList, total: tot, mesesConsumo: meses });
-      setLoading(false);
-    },
-    [
-      filtroCodigo,
-      filtroResponsavel,
-      filtroStatus,
-      filtroComRegistro,
-      page,
-      pageSize,
-      toast,
-      getCached,
-      setCached,
-    ]
-  );
-
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
-
-  useEffect(() => {
-    loadItens();
-  }, [loadItens]);
-
-  const aplicarFiltros = () => {
-    setPage(1);
-    loadItens();
-  };
-
-  const atualizarTudo = useCallback(() => {
-    invalidateControleEmpenhos();
-    loadDashboard(true);
-    loadItens(true);
-  }, [invalidateControleEmpenhos, loadDashboard, loadItens]);
-
-  const handleSave = async () => {
-    if (selectedId == null) return;
-    const vals = editValues[selectedId];
-    if (!vals) return;
-    const item = itens.find((i) => i.id === selectedId);
-    if (!item) return;
-    setSaving(true);
-    const toNum = (v: number | undefined | null): number | undefined => {
-      if (v == null) return undefined;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : undefined;
-    };
-    const toStr = (v: string | undefined | null): string | undefined => {
-      const s = v != null ? String(v).trim() : '';
-      return s === '' ? undefined : s;
-    };
-    const { error, status } = await controleEmpenhosApi.salvarHistorico({
-      material_id: item.id,
-      classificacao: toStr(item.classificacao ?? null),
-      resp_controle: toStr(item.respControle ?? null),
-      setor_controle: toStr(item.setorControle ?? null),
-      master_descritivo: toStr(item.masterDescritivo ?? null),
-      numero_registro: toStr(item.registroMaster ?? null),
-      valor_unit_registro: toNum(item.valorUnitRegistro),
-      saldo_registro: toNum(item.saldoRegistro),
-      qtde_por_embalagem: toNum(vals.qtde_por_embalagem),
-      tipo_armazenamento: toStr(vals.tipo_armazenamento),
-      capacidade_estocagem: toStr(vals.capacidade_estocagem),
-      observacao: toStr(vals.observacao),
-    });
-    setSaving(false);
-    if (status === 401) {
-      toast({ title: 'Sessão expirada', status: 'error' });
-      return;
-    }
-    if (error) {
-      toast({ title: error, status: 'error' });
-      return;
-    }
-    toast({ title: 'Histórico salvo', status: 'success' });
-    setSelectedId(null);
-    setEditValues((prev) => {
-      const next = { ...prev };
-      delete next[selectedId];
-      return next;
-    });
-    invalidateControleEmpenhos();
-    loadItens(true);
-  };
-
-  const toggleSelect = (item: ItemControleEmpenho) => {
-    if (selectedId === item.id) {
-      setSelectedId(null);
-      setEditValues((prev) => {
-        const next = { ...prev };
-        delete next[item.id];
-        return next;
-      });
-    } else {
-      setSelectedId(item.id);
-      setEditValues((prev) => ({
-        ...prev,
-        [item.id]: {
-          qtde_por_embalagem: item.qtdePorEmbalagem != null ? Number(item.qtdePorEmbalagem) : undefined,
-          tipo_armazenamento: item.tipoArmazenamento ?? '',
-          capacidade_estocagem: item.capacidadeEstocagem ?? '',
-          observacao: item.observacao ?? '',
-        },
-      }));
-    }
-  };
-
-  const updateEdit = (id: number, field: string, value: string | number | undefined) => {
-    setEditValues((prev) => ({
-      ...prev,
-      [id]: { ...prev[id], [field]: value === '' ? undefined : value },
-    }));
-  };
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasDirty = selectedId != null && editValues[selectedId];
-
-  const consumoHeaders = useMemo(() => getConsumoHeaders(mesesConsumo), [mesesConsumo]);
+  const {
+    dashboard,
+    itens,
+    total,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    loading,
+    loadingDashboard,
+    filtroCodigo,
+    setFiltroCodigo,
+    filtroResponsavel,
+    setFiltroResponsavel,
+    filtroStatus,
+    setFiltroStatus,
+    filtroComRegistro,
+    setFiltroComRegistro,
+    selectedId,
+    editValues,
+    saving,
+    aplicarFiltros,
+    atualizarTudo,
+    handleSave,
+    toggleSelect,
+    updateEdit,
+    totalPages,
+    hasDirty,
+    consumoHeaders,
+    PAGE_SIZE_OPTIONS,
+  } = useControleEmpenhos();
 
   return (
     <Box>
@@ -387,6 +192,7 @@ export function ControleEmpenhos() {
       )}
 
       <Card bg="white">
+        {/* Para listas muito grandes (ex.: pageSize > 100), considere virtualizar o corpo da tabela com @tanstack/react-virtual para melhor performance. */}
         <TableContainer overflowX="auto">
           {loading ? (
             <Flex justify="center" py={8}>

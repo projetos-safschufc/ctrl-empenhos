@@ -24,12 +24,12 @@ export const authService = {
       if (!valid) return null;
 
       const payload: TokenPayload = {
-      userId: user.id,
-      profileId: user.profileId,
-      email: user.email,
-      profileName: user.profile.name,
-    };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
+        userId: user.id,
+        profileId: user.profileId,
+        email: user.email,
+        profileName: user.profile?.name ?? 'consultor',
+      };
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
 
       return {
         token,
@@ -38,7 +38,7 @@ export const authService = {
           email: user.email,
           name: user.name,
           profileId: user.profileId,
-          profileName: user.profile.name,
+          profileName: user.profile?.name ?? 'consultor',
         },
       };
     } catch {
@@ -67,7 +67,7 @@ export const authService = {
       userId: user.id,
       profileId: user.profileId,
       email: user.email,
-      profileName: user.profile.name,
+      profileName: user.profile?.name ?? 'consultor',
     };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
 
@@ -78,7 +78,7 @@ export const authService = {
         email: user.email,
         name: user.name,
         profileId: user.profileId,
-        profileName: user.profile.name,
+        profileName: user.profile?.name ?? 'consultor',
       },
     };
   },

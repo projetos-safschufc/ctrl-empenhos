@@ -61,34 +61,22 @@ function appendPoolParamsIfMissing(url: string): string {
 
 /**
  * Monta a URL de conexão PostgreSQL para o Prisma.
- * Quando DB_PASSWORD está definido, sempre monta a URL a partir de DB_* (senha normalizada e codificada),
- * para evitar DATABASE_URL do .env com senha mal interpretada (#, aspas, etc.).
- * Inclui parâmetros de pool/timeout para maior resiliência a ConnectionReset (cód. 10054).
+ * Usa DATABASE_URL se definido; senão monta a partir de DB_* (senha normalizada e codificada).
+ * Em produção, definir DATABASE_URL ou todas as variáveis DB_HOST, DB_PORT, DB_DATABASE, DB_USER e DB_PASSWORD.
+ * Defaults neutros (localhost, postgres) apenas quando nenhuma variável está definida, para evitar vazamento de dados de ambiente.
  */
 export function getDatabaseUrl(): string {
-  const hasDbPassword = process.env.DB_PASSWORD !== undefined && process.env.DB_PASSWORD !== '';
-  let url: string;
-  if (hasDbPassword) {
-    const host = (process.env.DB_HOST ?? '10.28.0.159').trim();
-    const port = (process.env.DB_PORT ?? '5432').trim();
-    const database = (process.env.DB_DATABASE ?? 'safs').trim();
-    const user = (process.env.DB_USER ?? 'abimael').trim();
-    const password = normalizePassword(process.env.DB_PASSWORD ?? '');
-    const encodedPassword = encodePasswordForUrl(password);
-    url = `postgresql://${user}:${encodedPassword}@${host}:${port}/${database}`;
-  } else {
-    const fromEnv = process.env.DATABASE_URL;
-    if (fromEnv && fromEnv.trim()) {
-      url = fromEnv.trim();
-    } else {
-      const host = (process.env.DB_HOST ?? '10.28.0.159').trim();
-      const port = (process.env.DB_PORT ?? '5432').trim();
-      const database = (process.env.DB_DATABASE ?? 'safs').trim();
-      const user = (process.env.DB_USER ?? 'abimael').trim();
-      const password = normalizePassword(process.env.DB_PASSWORD ?? '');
-      const encodedPassword = encodePasswordForUrl(password);
-      url = `postgresql://${user}:${encodedPassword}@${host}:${port}/${database}`;
-    }
+  const fromEnv = process.env.DATABASE_URL?.trim();
+  if (fromEnv) {
+    return appendPoolParamsIfMissing(fromEnv);
   }
+
+  const host = (process.env.DB_HOST ?? 'localhost').trim();
+  const port = (process.env.DB_PORT ?? '5432').trim();
+  const database = (process.env.DB_DATABASE ?? 'postgres').trim();
+  const user = (process.env.DB_USER ?? 'postgres').trim();
+  const password = normalizePassword(process.env.DB_PASSWORD ?? '');
+  const encodedPassword = encodePasswordForUrl(password);
+  const url = `postgresql://${user}:${encodedPassword}@${host}:${port}/${database}`;
   return appendPoolParamsIfMissing(url);
 }

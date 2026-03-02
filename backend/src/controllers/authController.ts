@@ -6,13 +6,7 @@ import { sendError, ErrorCode } from '../utils/errorResponse';
 export const authController = {
   async login(req: Request, res: Response) {
     try {
-      const body = req.body as { email?: string; password?: string };
-      const email = typeof body.email === 'string' ? body.email.trim() : '';
-      const password = typeof body.password === 'string' ? body.password : '';
-      if (!email || password === '') {
-        sendError(res, 400, ErrorCode.BAD_REQUEST, 'Email e senha são obrigatórios');
-        return;
-      }
+      const { email, password } = req.body as { email: string; password: string };
       const result = await authService.login(email, password);
       if (!result) {
         sendError(res, 401, ErrorCode.UNAUTHORIZED, 'Credenciais inválidas');
@@ -26,22 +20,12 @@ export const authController = {
   },
 
   async register(req: Request, res: Response) {
-    const { email, password, name } = req.body as { email?: string; password?: string; name?: string };
-    if (!email || !password) {
-      sendError(res, 400, ErrorCode.BAD_REQUEST, 'Email e senha são obrigatórios');
-      return;
-    }
-    if (password.length < 6) {
-      sendError(res, 400, ErrorCode.BAD_REQUEST, 'Senha deve ter no mínimo 6 caracteres');
-      return;
-    }
-
+    const { email, password, name } = req.body as { email: string; password: string; name?: string };
     const result = await authService.register(email, password, name);
     if (!result) {
       sendError(res, 409, ErrorCode.CONFLICT, 'Email já cadastrado');
       return;
     }
-
     res.status(201).json(result);
   },
 
