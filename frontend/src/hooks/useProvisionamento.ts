@@ -18,17 +18,27 @@ export function useProvisionamento() {
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [filtroTabela, setFiltroTabela] = useState('');
+  const [filtroNumeroRegistro, setFiltroNumeroRegistro] = useState('');
   const [page, setPage] = useState(1);
 
   const linhasFiltradas = useMemo(() => {
+    let result = linhas;
     const t = filtroTabela.trim().toLowerCase();
-    if (!t) return linhas;
-    return linhas.filter(
-      (l) =>
-        (l.codigo && l.codigo.toLowerCase().includes(t)) ||
-        (l.descricao && l.descricao.toLowerCase().includes(t))
-    );
-  }, [linhas, filtroTabela]);
+    if (t) {
+      result = result.filter(
+        (l) =>
+          (l.codigo && l.codigo.toLowerCase().includes(t)) ||
+          (l.descricao && l.descricao.toLowerCase().includes(t))
+      );
+    }
+    const r = filtroNumeroRegistro.trim().toLowerCase();
+    if (r) {
+      result = result.filter(
+        (l) => l.numeroRegistro != null && String(l.numeroRegistro).toLowerCase().includes(r)
+      );
+    }
+    return result;
+  }, [linhas, filtroTabela, filtroNumeroRegistro]);
 
   const totalPages = Math.max(1, Math.ceil(linhasFiltradas.length / PAGE_SIZE));
   const pageStart = (page - 1) * PAGE_SIZE;
@@ -39,7 +49,7 @@ export function useProvisionamento() {
 
   useEffect(() => {
     setPage(1);
-  }, [filtroTabela, linhas.length]);
+  }, [filtroTabela, filtroNumeroRegistro, linhas.length]);
 
   const carregarRegistrosAtivos = useCallback(
     async (silent = false, skipCache = false) => {
@@ -127,7 +137,9 @@ export function useProvisionamento() {
       prev.map((l) => {
         if (l.id !== id) return l;
         if (field === 'qtdePedida') {
-          const qtde = Number(value) || 0;
+          const raw = Number(value) || 0;
+          const maxQtde = l.saldoRegistro != null ? l.saldoRegistro : Infinity;
+          const qtde = Math.max(0, Math.min(raw, maxQtde));
           return {
             ...l,
             qtdePedida: qtde,
@@ -212,6 +224,8 @@ export function useProvisionamento() {
     lastError,
     filtroTabela,
     setFiltroTabela,
+    filtroNumeroRegistro,
+    setFiltroNumeroRegistro,
     page,
     setPage,
     linhasFiltradas,

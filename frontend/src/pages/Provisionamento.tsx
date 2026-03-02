@@ -82,6 +82,8 @@ export function Provisionamento() {
     lastError,
     filtroTabela,
     setFiltroTabela,
+    filtroNumeroRegistro,
+    setFiltroNumeroRegistro,
     page,
     setPage,
     linhasPagina,
@@ -160,10 +162,17 @@ export function Provisionamento() {
                   placeholder="Filtrar na tabela (código ou descritivo)"
                   value={filtroTabela}
                   onChange={(e) => setFiltroTabela(e.target.value)}
-                  w="320px"
+                  w="280px"
                   size="sm"
                 />
-                {filtroTabela.trim() && (
+                <Input
+                  placeholder="Filtrar por número registro"
+                  value={filtroNumeroRegistro}
+                  onChange={(e) => setFiltroNumeroRegistro(e.target.value)}
+                  w="200px"
+                  size="sm"
+                />
+                {(filtroTabela.trim() || filtroNumeroRegistro.trim()) && (
                   <Text fontSize="sm" color="gray.600">
                     {linhasFiltradas.length} de {linhas.length} registro(s)
                   </Text>
@@ -260,9 +269,15 @@ export function Provisionamento() {
                             size="sm"
                             w="100px"
                             min={0}
+                            max={linha.saldoRegistro != null ? linha.saldoRegistro : undefined}
                             step="0.01"
                             value={linha.qtdePedida || ''}
                             onChange={(e) => updateLinha(linha.id, 'qtdePedida', e.target.value)}
+                            title={
+                              linha.saldoRegistro != null
+                                ? `Máximo: ${linha.saldoRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (saldo registro)`
+                                : undefined
+                            }
                           />
                         </Td>
                         <Td isNumeric fontWeight="medium">
@@ -294,7 +309,7 @@ export function Provisionamento() {
                   </Tbody>
                 </Table>
               </Box>
-              {(linhasFiltradas.length > 0 || filtroTabela.trim()) && (
+              {(linhasFiltradas.length > 0 || filtroTabela.trim() || filtroNumeroRegistro.trim()) && (
                 <Flex justify="space-between" align="center" mt={4} flexWrap="wrap" gap={2}>
                   <HStack spacing={2}>
                     <Button
@@ -352,7 +367,7 @@ export function Provisionamento() {
             </Button>
             <Text color="gray.600" fontSize="sm">
               {linhas.length} registro(s) na tabela
-              {filtroTabela.trim() && ` · ${linhasFiltradas.length} após filtro`}
+              {(filtroTabela.trim() || filtroNumeroRegistro.trim()) && ` · ${linhasFiltradas.length} após filtro`}
             </Text>
           </HStack>
         </>

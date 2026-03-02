@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -18,6 +18,7 @@ import {
   AlertIcon,
   Flex,
   Checkbox,
+  Select,
 } from '@chakra-ui/react';
 import { FiSearch } from 'react-icons/fi';
 import { FiRepeat } from 'react-icons/fi';
@@ -45,6 +46,7 @@ export function EditarRecebimento() {
   // Não inicialize filtros com um valor “exemplo”, pois isso pode esconder os dados no primeiro carregamento.
   const [filtroEmpenho, setFiltroEmpenho] = useState('');
   const [filtroCodigo, setFiltroCodigo] = useState('');
+  const [filtroMes, setFiltroMes] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   const handleBuscar = useCallback(() => {
@@ -63,6 +65,7 @@ export function EditarRecebimento() {
   const handleLimpar = useCallback(() => {
     setFiltroEmpenho('');
     setFiltroCodigo('');
+    setFiltroMes('');
     setSelectedIds(new Set());
     clearResults();
   }, [clearResults]);
@@ -103,6 +106,28 @@ export function EditarRecebimento() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const mesesDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of itens) {
+      if (!item.data) continue;
+      const key = item.data.slice(0, 7); // YYYY-MM
+      if (key) set.add(key);
+    }
+    return Array.from(set).sort().map((key) => {
+      const [year, month] = key.split('-');
+      return {
+        value: key,
+        label: `${month}/${year}`,
+      };
+    });
+  }, [itens]);
+
+  const itensOrdenadosFiltrados = useMemo(() => {
+    const sorted = [...itens].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+    if (!filtroMes.trim()) return sorted;
+    return sorted.filter((item) => (item.data || '').slice(0, 7) === filtroMes);
+  }, [itens, filtroMes]);
+
   return (
     <Box bg={PLATAFORMA_COLORS.predominante} p={6} borderRadius="lg" minH="100vh">
       <PlataformaPageHeader subtitle="Editar Recebimento" />
@@ -133,6 +158,25 @@ export function EditarRecebimento() {
             borderColor={PLATAFORMA_COLORS.cinzaApoio}
             w="220px"
           />
+        </Box>
+        <Box>
+          <Text fontSize="sm" mb={1} color={PLATAFORMA_COLORS.detalheSecundario}>
+            Filtrar por Mês (Data):
+          </Text>
+          <Select
+            placeholder="Todos os meses"
+            value={filtroMes}
+            onChange={(e) => setFiltroMes(e.target.value)}
+            bg={PLATAFORMA_COLORS.cinzaApoio}
+            borderColor={PLATAFORMA_COLORS.cinzaApoio}
+            w="220px"
+          >
+            {mesesDisponiveis.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </Select>
         </Box>
         <Button
           leftIcon={<FiSearch />}
@@ -179,6 +223,7 @@ export function EditarRecebimento() {
               <Tr>
                 <Th color="white"></Th>
                 <Th color="white">Empenho</Th>
+                <Th color="white">Data</Th>
                 <Th color="white">Código</Th>
                 <Th color="white">Item</Th>
                 <Th color="white">Material</Th>
@@ -199,7 +244,7 @@ export function EditarRecebimento() {
                   </Td>
                 </Tr>
               )}
-              {itens.map((row) => (
+              {itensOrdenadosFiltrados.map((row) => (
                 <Tr key={row.id}>
                   <Td>
                     <Checkbox
@@ -209,6 +254,7 @@ export function EditarRecebimento() {
                     />
                   </Td>
                   <Td>{row.empenho}</Td>
+                  <Td>{row.data}</Td>
                   <Td>{row.codigo}</Td>
                   <Td>{row.item}</Td>
                   <Td>{row.material}</Td>
@@ -218,14 +264,28 @@ export function EditarRecebimento() {
                       size="sm"
                       w="80px"
                       type="number"
+                      min={0}
+                      max={row.saldo_emp}
+                      step="0.01"
                       value={row.qtde_receb}
-                      onChange={(e) =>
-                        updateItemLocal(row.id, {
-                          qtde_receb: parseFloat(e.target.value) || 0,
-                        })
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === '') {
+                          updateItemLocal(row.id, { qtde_receb: 0 });
+                          return;
+                        }
+                        const num = parseFloat(raw.replace(',', '.')) || 0;
+                        const max = Number.isFinite(row.saldo_emp) ? row.saldo_emp : undefined;
+                        const clamped =
+                          max != null ? Math.max(0, Math.min(num, max)) : Math.max(0, num);
+                        updateItemLocal(row.id, { qtde_receb: clamped });
+                      }}
                       bg={PLATAFORMA_COLORS.cinzaApoio}
                       borderColor={PLATAFORMA_COLORS.cinzaApoio}
+                      title={`Máximo: ${row.saldo_emp.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })} (Saldo Emp)`}
                     />
                   </Td>
                   <Td>

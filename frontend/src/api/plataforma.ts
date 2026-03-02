@@ -74,6 +74,7 @@ export interface SalvarObservacaoBody {
 // --- Editar Recebimento (item editável) ---
 export interface EditarRecebimentoItem {
   id: number;
+  data: string;
   empenho: string;
   codigo: string;
   item: string;

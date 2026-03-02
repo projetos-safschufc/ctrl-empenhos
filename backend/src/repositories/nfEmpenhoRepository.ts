@@ -11,6 +11,7 @@ export interface NfEmpenhoListItem {
   codigo: string | null;
   item: string | null;
   material: string | null;
+  data: Date | null;
   saldo_emp: number | null;
   v_unit: number | null;
   qtde_receb: number | null;
@@ -77,7 +78,7 @@ export async function listNfEmpenho(
     prisma.nf_empenho.count({ where: whereEmpenho }),
     prisma.nf_empenho.findMany({
       where: whereEmpenho,
-      orderBy: [{ empenho: 'asc' }, { id_emp: 'asc' }],
+      orderBy: [{ data: 'desc' }, { id_emp: 'asc' }],
       skip: offset,
       take: pageSize,
       select: {
@@ -86,6 +87,7 @@ export async function listNfEmpenho(
         codigo: true,
         item: true,
         material: true,
+        data: true,
         saldo_emp: true,
         v_unit: true,
         qtde_receb: true,
@@ -106,6 +108,7 @@ export async function listNfEmpenho(
     codigo: r.codigo ?? null,
     item: r.item ?? null,
     material: r.material ?? null,
+    data: r.data ?? null,
     saldo_emp: r.saldo_emp != null ? Number(r.saldo_emp) : null,
     v_unit: r.v_unit != null ? Number(r.v_unit) : null,
     qtde_receb: r.qtde_receb != null ? Number(r.qtde_receb) : null,

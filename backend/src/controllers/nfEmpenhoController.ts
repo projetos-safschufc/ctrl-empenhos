@@ -48,6 +48,7 @@ export const nfEmpenhoController = {
       res.json({
         itens: itens.map((r) => ({
           id: r.id,
+          data: r.data ? r.data.toISOString().slice(0, 10) : '',
           empenho: r.empenho,
           codigo: r.codigo ?? '',
           item: r.item ?? '',

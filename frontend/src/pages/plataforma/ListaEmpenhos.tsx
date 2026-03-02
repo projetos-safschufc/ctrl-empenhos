@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import {
   Box,
   Input,
@@ -67,6 +67,7 @@ export function ListaEmpenhos() {
 
   const [filtroMaster, setFiltroMaster] = useState('');
   const [filtroEmpenho, setFiltroEmpenho] = useState('');
+  const [filtroFornecedor, setFiltroFornecedor] = useState('');
   const [qtdeReceb, setQtdeReceb] = useState<Record<number, string>>({});
   const [obs, setObs] = useState<Record<number, string>>({});
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -90,6 +91,23 @@ export function ListaEmpenhos() {
 
   const canShowButtons = selectedIds.size > 0 && selectedWithValidQtde().length === selectedIds.size;
 
+  const itensFiltrados = useMemo(() => {
+    const f = filtroFornecedor.trim().toLowerCase();
+    if (!f) return itens;
+    return itens.filter((l) => (l.nm_fornecedor ?? '').toLowerCase().includes(f));
+  }, [itens, filtroFornecedor]);
+
+  const handleQtdeRecebChange = useCallback((id: number, qtdeEmp: number | null, value: string) => {
+    if (value === '') {
+      setQtdeReceb((p) => ({ ...p, [id]: '' }));
+      return;
+    }
+    const num = parseFloat(value.replace(',', '.')) || 0;
+    const max = qtdeEmp != null && Number.isFinite(qtdeEmp) ? qtdeEmp : Infinity;
+    const clamped = Math.max(0, Math.min(num, max));
+    setQtdeReceb((p) => ({ ...p, [id]: String(clamped) }));
+  }, []);
+
   const handleBuscar = useCallback(() => {
     load({ master: filtroMaster, empenho: filtroEmpenho, pageOverride: 1 }).catch(() => {});
   }, [load, filtroMaster, filtroEmpenho]);
@@ -97,6 +115,7 @@ export function ListaEmpenhos() {
   const handleLimpar = useCallback(() => {
     setFiltroMaster('');
     setFiltroEmpenho('');
+    setFiltroFornecedor('');
     setQtdeReceb({});
     setObs({});
     setSelectedIds(new Set());
@@ -230,6 +249,19 @@ export function ListaEmpenhos() {
             w="200px"
           />
         </Box>
+        <Box>
+          <Text fontSize="sm" mb={1} color={PLATAFORMA_COLORS.detalheSecundario}>
+            Filtrar por Fornecedor:
+          </Text>
+          <Input
+            placeholder={FILTER_PLACEHOLDERS.buscarPorFornecedor}
+            value={filtroFornecedor}
+            onChange={(e) => setFiltroFornecedor(e.target.value)}
+            bg={PLATAFORMA_COLORS.cinzaApoio}
+            borderColor={PLATAFORMA_COLORS.cinzaApoio}
+            w="240px"
+          />
+        </Box>
         <Button
           leftIcon={<FiSearch />}
           bg={PLATAFORMA_COLORS.detalhePrincipal}
@@ -255,6 +287,9 @@ export function ListaEmpenhos() {
 
       <Text mb={2} color={PLATAFORMA_COLORS.detalheSecundario}>
         Total de empenhos: {total}
+        {filtroFornecedor.trim() && (
+          <> — Exibindo {itensFiltrados.length} de {itens.length} na página</>
+        )}
       </Text>
 
       <HStack mb={2} spacing={2} flexWrap="wrap">
@@ -342,7 +377,16 @@ export function ListaEmpenhos() {
                   </Td>
                 </Tr>
               )}
-              {itens.map((row: ListaEmpenhoItem) => (
+              {!loading && itens.length > 0 && itensFiltrados.length === 0 && (
+                <Tr>
+                  <Td colSpan={11} py={6}>
+                    <Text color={PLATAFORMA_COLORS.detalheSecundario}>
+                      Nenhum empenho corresponde ao filtro por fornecedor.
+                    </Text>
+                  </Td>
+                </Tr>
+              )}
+              {itensFiltrados.map((row: ListaEmpenhoItem) => (
                 <Tr key={row.id}>
                   <Td>
                     <Checkbox
@@ -361,12 +405,21 @@ export function ListaEmpenhos() {
                   <Td>{formatNum(row.qt_saldo)}</Td>
                   <Td>
                     <Input
+                      type="number"
                       size="sm"
                       w="80px"
+                      min={0}
+                      max={row.qt_saldo != null ? row.qt_saldo : undefined}
+                      step="0.01"
                       value={qtdeReceb[row.id] ?? ''}
-                      onChange={(e) => setQtdeReceb((p) => ({ ...p, [row.id]: e.target.value }))}
+                      onChange={(e) => handleQtdeRecebChange(row.id, row.qt_saldo ?? null, e.target.value)}
                       bg={PLATAFORMA_COLORS.cinzaApoio}
                       borderColor={PLATAFORMA_COLORS.cinzaApoio}
+                      title={
+                        row.qt_saldo != null
+                          ? `Máximo: ${formatNum(row.qt_saldo)} (Qtde Emp)`
+                          : undefined
+                      }
                     />
                   </Td>
                   <Td>
