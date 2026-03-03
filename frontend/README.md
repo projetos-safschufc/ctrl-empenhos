@@ -11,7 +11,7 @@ React + TypeScript + Vite + Chakra UI. Paleta: fundo areia (#F5F0E6), verde (#8B
 
 ## Configuração
 
-Em desenvolvimento, o Vite faz proxy de `/api` para o backend em `http://localhost:3001`. **Mantenha o backend rodando** (na raiz: `npm run dev:backend` ou em `backend`: `npm run dev`). Se o backend estiver parado, ao tentar login ou outras chamadas à API você verá "Servidor indisponível..." e no terminal do Vite podem aparecer erros `ECONNREFUSED`/`ECONNRESET` — isso é esperado; suba o backend para corrigir.
+Em desenvolvimento, o Vite faz proxy de `/api` para o backend em `http://localhost:3002`. **Mantenha o backend rodando** (na raiz: `npm run dev:backend` ou em `backend`: `npm run dev`). Se o backend estiver parado, ao tentar login ou outras chamadas à API você verá "Servidor indisponível..." e no terminal do Vite podem aparecer erros `ECONNREFUSED`/`ECONNRESET` — isso é esperado; suba o backend para corrigir.
 
 Para apontar para outra URL da API (ex.: produção), crie `.env` no frontend com:
 

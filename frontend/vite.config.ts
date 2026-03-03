@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   // Detectar backend dinamicamente (backend escreve frontend/.env.local em dev)
-  const BACKEND_PORT = env.VITE_BACKEND_PORT || process.env.VITE_BACKEND_PORT || '3001';
+  const BACKEND_PORT = env.VITE_BACKEND_PORT || process.env.VITE_BACKEND_PORT || '3002';
   const BACKEND_URL = env.VITE_BACKEND_URL || process.env.VITE_BACKEND_URL || `http://localhost:${BACKEND_PORT}`;
 
   return {
