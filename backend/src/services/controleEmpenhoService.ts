@@ -48,6 +48,8 @@ export interface ItemControleEmpenho {
   estoqueAlmoxarifados: number;
   estoqueGeral: number;
   saldoEmpenhos: number;
+  /** Estoque virtual = estoque almoxarifados + saldo empenhos */
+  estoqueVirtual: number;
   numeroPreEmpenho: string | null;
   coberturaEstoque: number | null;
   registroMaster: string | null;
@@ -313,6 +315,7 @@ export const controleEmpenhoService = {
         estoqueAlmoxarifados: validarEstoque(totais.estoqueAlmoxarifados),
         estoqueGeral: validarEstoque(estoqueGeral),
         saldoEmpenhos: validarEstoque(totais.saldoEmpenhos),
+        estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
         numeroPreEmpenho: null as string | null,
         coberturaEstoque: cobertura,
         qtdePorEmbalagem: lastHist?.qtdePorEmbalagem != null ? Number(lastHist.qtdePorEmbalagem) : null,
@@ -344,14 +347,15 @@ export const controleEmpenhoService = {
           const preEmpenhoKey = `${cat.master}|${nr}`;
           const numeroPreEmpenho = preEmpenhoPorMasterERegistro.get(preEmpenhoKey) ?? null;
           itens.push({
-            ...base,
-            numeroPreEmpenho,
-            rowKey: `${cat.id}-${nr}-${idx}`,
-            registroMaster: reg.numero_registro ?? null,
-            vigenciaRegistro: reg.vigencia ?? null,
-            saldoRegistro: reg.saldo_registro ?? null,
-            valorUnitRegistro: reg.valor_unitario ?? null,
-          });
+          ...base,
+          numeroPreEmpenho,
+          rowKey: `${cat.id}-${nr}-${idx}`,
+          registroMaster: reg.numero_registro ?? null,
+          vigenciaRegistro: reg.vigencia ?? null,
+          saldoRegistro: reg.saldo_registro ?? null,
+          valorUnitRegistro: reg.valor_unitario ?? null,
+          estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
+        });
         }
       }
     }

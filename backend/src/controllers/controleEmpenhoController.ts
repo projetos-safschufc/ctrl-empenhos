@@ -19,6 +19,7 @@ export const controleEmpenhoController = {
   async getItens(req: Request, res: Response) {
     const codigo = req.query.codigo as string | undefined;
     const responsavel = req.query.responsavel as string | undefined;
+    const classificacao = req.query.classificacao as string | undefined;
     const status = req.query.status as string | undefined;
     const comRegistro = req.query.comRegistro as string | undefined;
     const page = parsePage(req.query.page);
@@ -27,6 +28,7 @@ export const controleEmpenhoController = {
     const filters: CatalogoFilters & { status?: string; comRegistro?: boolean } = {};
     if (codigo) filters.codigo = codigo;
     if (responsavel) filters.responsavel = responsavel;
+    if (classificacao) filters.classificacao = classificacao;
     if (status) filters.status = status;
     if (comRegistro !== undefined) filters.comRegistro = comRegistro === 'true';
 

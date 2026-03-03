@@ -79,8 +79,8 @@ export function formatarMesanoMMYYYY(mesano: number | null | undefined): string 
   const n = Number(mesano);
   if (Number.isNaN(n) || n <= 0) return '-';
   const str = String(n).padStart(6, '0');
-  const mm = str.substring(2, 4);
   const yyyy = str.substring(0, 4);
+  const mm = str.substring(4, 6);
   return `${mm}/${yyyy}`;
 }
 

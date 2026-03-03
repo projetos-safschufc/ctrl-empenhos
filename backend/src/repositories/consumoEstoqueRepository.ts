@@ -335,7 +335,7 @@ export async function getTotaisEstoqueSaldo(materialCodigo: string): Promise<{
   const placeholders = variantes.map((_, i) => `$${i + 1}`).join(', ');
   const query = `
     SELECT
-      COALESCE(SUM(qtde_em_estoque::numeric), 0) AS estoque_almoxarifados,
+      COALESCE(MAX(qtde_em_estoque::numeric), 0) AS estoque_almoxarifados,
       COALESCE(SUM(${saldoCol}::numeric), 0) AS saldo_empenhos
     FROM ${view}
     WHERE ${MATERIAL_PREFIX_EXPR} IN (${placeholders})
@@ -352,7 +352,10 @@ export async function getTotaisEstoqueSaldo(materialCodigo: string): Promise<{
   }
 }
 
-/** Totais estoque/saldo para vários masters em uma consulta. */
+/** Totais estoque/saldo para vários masters em uma consulta.
+ * Estoque almox.: usa MAX(qtde_em_estoque) para não somar o mesmo valor por registro (v_df_consumo_estoque tem 1 linha por registro; qtde_em_estoque é igual em todas para o material).
+ * Saldo empenhos: mantém SUM (total por material).
+ */
 export async function getTotaisEstoqueSaldoPorMasters(
   masters: string[]
 ): Promise<Map<string, { estoqueAlmoxarifados: number; saldoEmpenhos: number }>> {
@@ -366,7 +369,7 @@ export async function getTotaisEstoqueSaldoPorMasters(
   const placeholders = allVariantes.map((_, i) => `$${i + 1}`).join(', ');
   const query = `
     SELECT ${MATERIAL_PREFIX_EXPR} AS master_code,
-      COALESCE(SUM(qtde_em_estoque::numeric), 0) AS estoque_almoxarifados,
+      COALESCE(MAX(qtde_em_estoque::numeric), 0) AS estoque_almoxarifados,
       COALESCE(SUM(${saldoCol}::numeric), 0) AS saldo_empenhos
     FROM ${view}
     WHERE ${MATERIAL_PREFIX_EXPR} IN (${placeholders})

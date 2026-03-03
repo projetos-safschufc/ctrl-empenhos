@@ -197,8 +197,8 @@ export async function fetchEditarRecebimentoItens(params: {
   const itens: EditarRecebimentoItem[] = (data.itens || []).map((r, i) => {
     const saldo = Number.parseFloat(String(r.valor_total ?? '0')) || 0;
     return {
-      // O PATCH atualiza o recebimento pelo ID, então mantemos o id do recebimento.
       id: r.id,
+      data: r.data_recebimento ?? '',
       empenho: r.numero_nf,
       // “Código” na UI: exibir CNPJ quando disponível (é o campo que o backend filtra em fornecedor_cnpj).
       codigo: r.fornecedor_cnpj ? String(r.fornecedor_cnpj) : String(r.id),

@@ -9,13 +9,14 @@ import {
 } from '../api/client';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 
-const PAGE_SIZE_OPTIONS = [30, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 30;
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 25;
 const DASHBOARD_KEY = CacheKeys.controleDashboard();
 
 function buildItensParams(
   filtroCodigo: string,
   filtroResponsavel: string,
+  filtroClassificacao: string,
   filtroStatus: string,
   filtroComRegistro: string,
   page: number,
@@ -26,6 +27,7 @@ function buildItensParams(
     pageSize,
     codigo: filtroCodigo || undefined,
     responsavel: filtroResponsavel || undefined,
+    classificacao: filtroClassificacao || undefined,
     status: filtroStatus || undefined,
     comRegistro:
       filtroComRegistro === 'true' ? true : filtroComRegistro === 'false' ? false : undefined,
@@ -56,6 +58,7 @@ export function useControleEmpenhos() {
 
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroResponsavel, setFiltroResponsavel] = useState('');
+  const [filtroClassificacao, setFiltroClassificacao] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('');
   const [filtroComRegistro, setFiltroComRegistro] = useState<string>('');
 
@@ -90,6 +93,7 @@ export function useControleEmpenhos() {
       const params = buildItensParams(
         filtroCodigo,
         filtroResponsavel,
+        filtroClassificacao,
         filtroStatus,
         filtroComRegistro,
         page,
@@ -121,6 +125,7 @@ export function useControleEmpenhos() {
     [
       filtroCodigo,
       filtroResponsavel,
+      filtroClassificacao,
       filtroStatus,
       filtroComRegistro,
       page,
@@ -248,6 +253,8 @@ export function useControleEmpenhos() {
     setFiltroCodigo,
     filtroResponsavel,
     setFiltroResponsavel,
+    filtroClassificacao,
+    setFiltroClassificacao,
     filtroStatus,
     setFiltroStatus,
     filtroComRegistro,

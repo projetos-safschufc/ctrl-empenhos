@@ -120,6 +120,8 @@ export interface ItemControleEmpenho {
   estoqueAlmoxarifados: number;
   estoqueGeral: number;
   saldoEmpenhos: number;
+  /** Estoque virtual = estoque almox. + saldo empenhos */
+  estoqueVirtual: number;
   numeroPreEmpenho: string | null;
   coberturaEstoque: number | null;
   registroMaster: string | null;
@@ -188,6 +190,7 @@ export const controleEmpenhosApi = {
   getItens: (params: {
     codigo?: string;
     responsavel?: string;
+    classificacao?: string;
     status?: string;
     comRegistro?: boolean;
     page?: number;
@@ -196,6 +199,7 @@ export const controleEmpenhosApi = {
     const search = new URLSearchParams();
     if (params.codigo) search.set('codigo', params.codigo);
     if (params.responsavel) search.set('responsavel', params.responsavel);
+    if (params.classificacao) search.set('classificacao', params.classificacao);
     if (params.status) search.set('status', params.status);
     if (params.comRegistro !== undefined) search.set('comRegistro', String(params.comRegistro));
     if (params.page) search.set('page', String(params.page));

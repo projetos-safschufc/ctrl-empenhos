@@ -44,8 +44,8 @@ export const formatarMesano = (mesano: number | null | undefined, fallback = '-'
   const n = Number(mesano);
   if (Number.isNaN(n) || n <= 0) return fallback;
   const str = String(n).padStart(6, '0');
-  const mm = str.substring(2, 4);
   const yyyy = str.substring(0, 4);
+  const mm = str.substring(4, 6);
   return `${mm}/${yyyy}`;
 };
 
@@ -253,6 +253,8 @@ export interface DadosColunasControleRender {
   estoqueAlmoxarifados: number;
   estoqueGeral: number;
   saldoEmpenhos: number;
+  /** Estoque virtual = estoque almox. + saldo empenhos */
+  estoqueVirtual: number;
   coberturaEstoque: number | null;
 }
 
@@ -313,6 +315,15 @@ export function renderizarColunasControle(dados: DadosColunasControleRender): JS
       key="saldoEmpenhos"
       estoque={dados.saldoEmpenhos}
       label="Saldo Empenhos"
+    />
+  );
+
+  // Coluna 18b: Estoque virtual (estoque almox. + saldo empenhos)
+  elementos.push(
+    <ColunaEstoqueCell
+      key="estoqueVirtual"
+      estoque={dados.estoqueVirtual}
+      label="Estoque Virtual (Almox. + Saldo Emp.)"
     />
   );
 

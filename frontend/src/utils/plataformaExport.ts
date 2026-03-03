@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 import { PLATAFORMA_COLORS } from '../constants/plataforma';
+import type { ItemControleEmpenho } from '../api/client';
+import { formatarDecimal, formatarMesano } from './columnRenderers';
 
 /** Número máximo de linhas permitidas em uma exportação Excel/PDF (evita travamento do navegador). */
 export const MAX_EXPORT_ROWS = 5000;
@@ -56,6 +58,123 @@ export async function exportarExcelListaRecebimentos(
   filenameBase: string
 ): Promise<void> {
   return exportarExcelListaEmpenhos(rows, columns, filenameBase);
+}
+
+/**
+ * Exporta a tabela da tela Controle de Empenhos para Excel formatado.
+ * Usa os dados já carregados (página atual), respeitando os filtros aplicados.
+ */
+export async function exportarExcelControleEmpenhos(
+  itens: ItemControleEmpenho[],
+  consumoHeaders: string[],
+  filenameBase: string = 'controle-empenhos'
+): Promise<void> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Controle de Empenhos', {
+    views: [{ state: 'frozen', ySplit: 1 }],
+    pageSetup: { fitToPage: true, fitToWidth: 1, orientation: 'landscape' as const },
+  });
+
+  const headers = [
+    'Classificação',
+    'Resp ctrl',
+    'Master/Descritivo',
+    'Apres',
+    ...consumoHeaders,
+    'Média 6 meses',
+    'Mês últ consumo',
+    'Qtde últ consumo',
+    'Estoque almox.',
+    'Estoque geral',
+    'Saldo empenhos',
+    'Estoque virtual',
+    'Cobertura estoque',
+    'Pré-empenho',
+    'Registro',
+    'Vigência',
+    'Saldo registro',
+    'Valor unit. registro',
+    'Qtde/emb.',
+    'Class. XYZ',
+    'Tipo armazen.',
+    'Cap. estocagem',
+    'Status',
+    'Observação',
+  ];
+
+  const headerRow = ws.addRow(headers);
+  headerRow.font = { bold: true };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF' + (PLATAFORMA_COLORS.detalheSecundario?.replace('#', '') || '145D50') },
+  };
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+
+  for (const item of itens) {
+    const estoqueVirtual =
+      item.estoqueVirtual != null && Number.isFinite(Number(item.estoqueVirtual))
+        ? Number(item.estoqueVirtual)
+        : (Number(item.estoqueAlmoxarifados) || 0) + (Number(item.saldoEmpenhos) || 0);
+    const vigenciaStr =
+      item.vigenciaRegistro != null && item.vigenciaRegistro !== ''
+        ? (() => {
+            const s = String(item.vigenciaRegistro).trim();
+            const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+            return s;
+          })()
+        : '-';
+
+    const row = [
+      item.classificacao ?? '-',
+      item.respControle ?? '-',
+      item.masterDescritivo ?? '-',
+      item.apres ?? '-',
+      Number(item.consumoMesMinus6) ?? 0,
+      Number(item.consumoMesMinus5) ?? 0,
+      Number(item.consumoMesMinus4) ?? 0,
+      Number(item.consumoMesMinus3) ?? 0,
+      Number(item.consumoMesMinus2) ?? 0,
+      Number(item.consumoMesMinus1) ?? 0,
+      Number(item.consumoMesAtual) ?? 0,
+      formatarDecimal(item.mediaConsumo6Meses, 1) === '-' ? '' : formatarDecimal(item.mediaConsumo6Meses, 1),
+      formatarMesano(item.mesUltimoConsumo),
+      Number(item.qtdeUltimoConsumo) ?? 0,
+      Number(item.estoqueAlmoxarifados) ?? 0,
+      Number(item.estoqueGeral) ?? 0,
+      Number(item.saldoEmpenhos) ?? 0,
+      estoqueVirtual,
+      item.coberturaEstoque != null ? formatarDecimal(item.coberturaEstoque, 1) : '-',
+      item.numeroPreEmpenho ?? '-',
+      item.registroMaster ?? '-',
+      vigenciaStr,
+      item.saldoRegistro != null ? formatarDecimal(item.saldoRegistro, 0) : '-',
+      item.valorUnitRegistro != null ? 'R$ ' + formatarDecimal(item.valorUnitRegistro) : '-',
+      item.qtdePorEmbalagem != null ? formatarDecimal(item.qtdePorEmbalagem) : '-',
+      item.classificacaoXYZ ?? '-',
+      item.tipoArmazenamento ?? '-',
+      item.capacidadeEstocagem ?? '-',
+      item.status ?? '-',
+      (item.observacao ?? '-').toString(),
+    ];
+    ws.addRow(row);
+  }
+
+  const colCount = headers.length;
+  for (let i = 1; i <= colCount; i++) {
+    const col = ws.getColumn(i);
+    if (col) col.width = i === 3 ? 50 : i <= 7 ? 14 : 16;
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filenameBase}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Abre janela de impressão em orientação horizontal (usuário pode "Salvar como PDF"). */

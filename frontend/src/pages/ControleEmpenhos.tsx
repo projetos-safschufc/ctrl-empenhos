@@ -28,6 +28,7 @@ import {
   DadosColunasControleRender,
   ColunaPreEmpenhoCell,
 } from '../utils/columnRenderers';
+import { exportarExcelControleEmpenhos } from '../utils/plataformaExport';
 
 export function ControleEmpenhos() {
   const {
@@ -44,6 +45,8 @@ export function ControleEmpenhos() {
     setFiltroCodigo,
     filtroResponsavel,
     setFiltroResponsavel,
+    filtroClassificacao,
+    setFiltroClassificacao,
     filtroStatus,
     setFiltroStatus,
     filtroComRegistro,
@@ -141,6 +144,13 @@ export function ControleEmpenhos() {
               value={filtroResponsavel}
               onChange={(e) => setFiltroResponsavel(e.target.value)}
             />
+            <Input
+              placeholder="Classificação"
+              size="sm"
+              w="180px"
+              value={filtroClassificacao}
+              onChange={(e) => setFiltroClassificacao(e.target.value)}
+            />
             <Select
               size="sm"
               w="120px"
@@ -216,6 +226,7 @@ export function ControleEmpenhos() {
                   <Th isNumeric>Estoque almox.</Th>
                   <Th isNumeric>Estoque geral</Th>
                   <Th isNumeric>Saldo empenhos</Th>
+                  <Th isNumeric title="Estoque almox. + Saldo empenhos">Estoque virtual</Th>
                   <Th>Cobertura estoque</Th>
                   <Th>Pré-empenho</Th>
                   <Th>Registro</Th>
@@ -233,7 +244,7 @@ export function ControleEmpenhos() {
               <Tbody>
                 {loading && (
                   <Tr>
-                    <Td colSpan={20} textAlign="center" py={8}>
+                    <Td colSpan={31} textAlign="center" py={8}>
                       <Spinner size="lg" />
                       <Text mt={2}>Carregando dados...</Text>
                     </Td>
@@ -241,7 +252,7 @@ export function ControleEmpenhos() {
                 )}
                 {!loading && itens.length === 0 && (
                   <Tr>
-                    <Td colSpan={20} textAlign="center" py={8}>
+                    <Td colSpan={31} textAlign="center" py={8}>
                       <Text color="gray.500">Nenhum item encontrado</Text>
                       <Text fontSize="sm" color="gray.400" mt={1}>
                         Total: {total} | Página: {page}
@@ -268,6 +279,9 @@ export function ControleEmpenhos() {
                     estoqueAlmoxarifados: Number(item.estoqueAlmoxarifados) || 0,
                     estoqueGeral: Number(item.estoqueGeral) || 0,
                     saldoEmpenhos: Number(item.saldoEmpenhos) || 0,
+                    estoqueVirtual: item.estoqueVirtual != null && Number.isFinite(Number(item.estoqueVirtual))
+                      ? Number(item.estoqueVirtual)
+                      : (Number(item.estoqueAlmoxarifados) || 0) + (Number(item.saldoEmpenhos) || 0),
                     coberturaEstoque: item.coberturaEstoque ? Number(item.coberturaEstoque) : null,
                   };
                   
@@ -388,6 +402,16 @@ export function ControleEmpenhos() {
               {total} itens – página {page} de {totalPages}
             </Text>
             <HStack gap={2} flexWrap="wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                colorScheme="green"
+                onClick={() => exportarExcelControleEmpenhos(itens, consumoHeaders)}
+                isDisabled={loading || itens.length === 0}
+                title="Exportar dados da página atual (respeitando filtros) para Excel"
+              >
+                Exportar Excel
+              </Button>
               <Text fontSize="sm" whiteSpace="nowrap">Itens por página:</Text>
               <Select
                 size="sm"

@@ -3,6 +3,7 @@ import { prisma } from '../utils/prisma';
 export interface CatalogoFilters {
   codigo?: string;
   responsavel?: string;
+  classificacao?: string;
   comRegistro?: boolean;
 }
 
@@ -15,6 +16,9 @@ export const catalogoRepository = {
     }
     if (filters.responsavel?.trim()) {
       where.respControle = { contains: filters.responsavel.trim(), mode: 'insensitive' };
+    }
+    if (filters.classificacao?.trim()) {
+      where.servAquisicao = { contains: filters.classificacao.trim(), mode: 'insensitive' };
     }
 
     const [items, total] = await Promise.all([
@@ -39,6 +43,9 @@ export const catalogoRepository = {
     }
     if (filters.responsavel?.trim()) {
       where.respControle = { contains: filters.responsavel.trim(), mode: 'insensitive' };
+    }
+    if (filters.classificacao?.trim()) {
+      where.servAquisicao = { contains: filters.classificacao.trim(), mode: 'insensitive' };
     }
 
     return prisma.safsCatalogo.count({ where });
