@@ -17,6 +17,7 @@ function buildItensParams(
   filtroCodigo: string,
   filtroResponsavel: string,
   filtroClassificacao: string,
+  filtroSetor: string,
   filtroStatus: string,
   filtroComRegistro: string,
   page: number,
@@ -28,6 +29,7 @@ function buildItensParams(
     codigo: filtroCodigo || undefined,
     responsavel: filtroResponsavel || undefined,
     classificacao: filtroClassificacao || undefined,
+    setor: filtroSetor || undefined,
     status: filtroStatus || undefined,
     comRegistro:
       filtroComRegistro === 'true' ? true : filtroComRegistro === 'false' ? false : undefined,
@@ -59,8 +61,12 @@ export function useControleEmpenhos() {
   const [filtroCodigo, setFiltroCodigo] = useState('');
   const [filtroResponsavel, setFiltroResponsavel] = useState('');
   const [filtroClassificacao, setFiltroClassificacao] = useState('');
+  const [filtroSetor, setFiltroSetor] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('');
   const [filtroComRegistro, setFiltroComRegistro] = useState<string>('');
+
+  const [opcoesClassificacao, setOpcoesClassificacao] = useState<string[]>([]);
+  const [opcoesResponsavel, setOpcoesResponsavel] = useState<string[]>([]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<EditValuesMap>({});
@@ -94,6 +100,7 @@ export function useControleEmpenhos() {
         filtroCodigo,
         filtroResponsavel,
         filtroClassificacao,
+        filtroSetor,
         filtroStatus,
         filtroComRegistro,
         page,
@@ -126,6 +133,7 @@ export function useControleEmpenhos() {
       filtroCodigo,
       filtroResponsavel,
       filtroClassificacao,
+      filtroSetor,
       filtroStatus,
       filtroComRegistro,
       page,
@@ -139,6 +147,16 @@ export function useControleEmpenhos() {
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await controleEmpenhosApi.getOpcoesFiltros();
+      if (data) {
+        if (Array.isArray(data.classificacoes)) setOpcoesClassificacao(data.classificacoes);
+        if (Array.isArray(data.responsaveis)) setOpcoesResponsavel(data.responsaveis);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     loadItens();
@@ -171,7 +189,7 @@ export function useControleEmpenhos() {
       return s === '' ? undefined : s;
     };
     const { error, status } = await controleEmpenhosApi.salvarHistorico({
-      material_id: item.id,
+      material_id: item.id,      
       classificacao: toStr(item.classificacao ?? null),
       resp_controle: toStr(item.respControle ?? null),
       setor_controle: toStr(item.setorControle ?? null),
@@ -255,10 +273,14 @@ export function useControleEmpenhos() {
     setFiltroResponsavel,
     filtroClassificacao,
     setFiltroClassificacao,
+    filtroSetor,
+    setFiltroSetor,
     filtroStatus,
     setFiltroStatus,
     filtroComRegistro,
     setFiltroComRegistro,
+    opcoesClassificacao,
+    opcoesResponsavel,
     selectedId,
     editValues,
     saving,

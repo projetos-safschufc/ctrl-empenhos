@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { controleEmpenhoService } from '../services/controleEmpenhoService';
 import { histCtrlEmpenhoRepository } from '../repositories/histCtrlEmpenhoRepository';
-import { CatalogoFilters } from '../repositories/catalogoRepository';
+import { catalogoRepository, CatalogoFilters } from '../repositories/catalogoRepository';
 import { sendError, ErrorCode } from '../utils/errorResponse';
 
 function parsePage(s: unknown): number {
@@ -20,6 +20,7 @@ export const controleEmpenhoController = {
     const codigo = req.query.codigo as string | undefined;
     const responsavel = req.query.responsavel as string | undefined;
     const classificacao = req.query.classificacao as string | undefined;
+    const setor = req.query.setor as string | undefined;
     const status = req.query.status as string | undefined;
     const comRegistro = req.query.comRegistro as string | undefined;
     const page = parsePage(req.query.page);
@@ -29,6 +30,7 @@ export const controleEmpenhoController = {
     if (codigo) filters.codigo = codigo;
     if (responsavel) filters.responsavel = responsavel;
     if (classificacao) filters.classificacao = classificacao;
+    if (setor) filters.setor = setor;
     if (status) filters.status = status;
     if (comRegistro !== undefined) filters.comRegistro = comRegistro === 'true';
 
@@ -50,6 +52,20 @@ export const controleEmpenhoController = {
     } catch (err) {
       console.error(err);
       sendError(res, 500, ErrorCode.INTERNAL_ERROR, 'Erro ao buscar dashboard');
+    }
+  },
+
+  /** Retorna opções para filtros da tela (classificações e responsáveis distintos do catálogo). */
+  async getOpcoesFiltros(req: Request, res: Response) {
+    try {
+      const [classificacoes, responsaveis] = await Promise.all([
+        catalogoRepository.findDistinctClassificacoes(),
+        catalogoRepository.findDistinctResponsaveis(),
+      ]);
+      res.json({ classificacoes, responsaveis });
+    } catch (err) {
+      console.error(err);
+      sendError(res, 500, ErrorCode.INTERNAL_ERROR, 'Erro ao buscar opções de filtros');
     }
   },
 

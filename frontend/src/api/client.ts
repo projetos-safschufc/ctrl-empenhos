@@ -191,6 +191,7 @@ export const controleEmpenhosApi = {
     codigo?: string;
     responsavel?: string;
     classificacao?: string;
+    setor?: string;
     status?: string;
     comRegistro?: boolean;
     page?: number;
@@ -200,6 +201,7 @@ export const controleEmpenhosApi = {
     if (params.codigo) search.set('codigo', params.codigo);
     if (params.responsavel) search.set('responsavel', params.responsavel);
     if (params.classificacao) search.set('classificacao', params.classificacao);
+    if (params.setor) search.set('setor', params.setor);
     if (params.status) search.set('status', params.status);
     if (params.comRegistro !== undefined) search.set('comRegistro', String(params.comRegistro));
     if (params.page) search.set('page', String(params.page));
@@ -208,6 +210,10 @@ export const controleEmpenhosApi = {
   },
 
   getDashboard: () => api<DashboardControleResponse>('/controle-empenhos/dashboard'),
+
+  /** Opções para filtros (classificações e responsáveis para os Selects). */
+  getOpcoesFiltros: () =>
+    api<{ classificacoes: string[]; responsaveis: string[] }>('/controle-empenhos/filtros'),
 
   salvarHistorico: (body: {
     material_id: number;

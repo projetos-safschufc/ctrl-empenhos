@@ -1,8 +1,10 @@
 import { getDwPool, getDwSchema } from '../utils/dwPool';
 
-/** Coluna de material na v_df_estoque (plano: nome_do_material_padronizado, extrair antes de "-"). */
+/** Coluna de material na v_df_estoque. Em gad_dlih_safs é nome_do_material_padronizado (relaciona com codigo_padronizado antes de "-"); em outros schemas pode ser mat_cod_antigo. */
+const _dwSchema = (process.env.DW_SCHEMA || 'public').toLowerCase();
+const _defaultEstoqueMaterialCol = _dwSchema === 'gad_dlih_safs' ? 'nome_do_material_padronizado' : 'mat_cod_antigo';
 const ESTOQUE_MATERIAL_COL =
-  process.env.DW_ESTOQUE_MATERIAL_COLUMN || process.env.DW_MATERIAL_COLUMN || 'mat_cod_antigo';
+  process.env.DW_ESTOQUE_MATERIAL_COLUMN || process.env.DW_MATERIAL_COLUMN || _defaultEstoqueMaterialCol;
 const ESTOQUE_MATERIAL_PREFIX_EXPR = `TRIM(SPLIT_PART(${ESTOQUE_MATERIAL_COL}::text, '-', 1))`;
 
 function variantesCodigoMaterial(codigo: string): string[] {
@@ -19,8 +21,8 @@ function variantesCodigoMaterial(codigo: string): string[] {
 }
 
 /**
- * Estoque geral (complexo) - soma da coluna "saldo" por material.
- * View: v_df_estoque (saldo; material: nome_do_material_padronizado ou mat_cod_antigo). Match por código antes de "-".
+ * Estoque geral = soma da coluna "saldo" da view v_df_estoque por material.
+ * Relacionamento: TRIM(SPLIT_PART(codigo_padronizado,'-',1)) da v_df_consumo_estoque = TRIM(SPLIT_PART(nome_do_material_padronizado,'-',1)) da v_df_estoque (schema gad_dlih_safs).
  */
 export async function getEstoqueGeralPorMaterial(materialCodigo: string): Promise<number> {
   const pool = getDwPool();

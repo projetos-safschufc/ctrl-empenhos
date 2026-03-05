@@ -10,7 +10,7 @@ const SIDEBAR_W = 240;
 /** Itens do menu lateral (path e rótulo). Divider fica entre o último item do primeiro bloco e o primeiro do segundo. */
 const MENU_ITEMS_TOP: { to: string; label: string }[] = [
   { to: '/', label: 'Início' },
-  { to: '/controle-empenhos', label: 'Controle de Empenhos' },
+  { to: '/controle-empenhos', label: 'Gestão de Estoque' },
   { to: '/movimentacao-diaria', label: 'Movimentação Diária' },
   { to: '/empenhos-pendentes', label: 'Empenhos Pendentes' },
   { to: '/provisionamento', label: 'Provisionamento' },

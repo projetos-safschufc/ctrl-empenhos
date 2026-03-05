@@ -30,6 +30,39 @@ import {
 } from '../utils/columnRenderers';
 import { exportarExcelControleEmpenhos } from '../utils/plataformaExport';
 
+/** Opções fixas para o campo Tipo de Armazenamento (coluna TIPO ARMAZEN.). */
+const TIPO_ARMAZEN_OPCOES = ['Geladeira', 'Estante', 'Pallet'] as const;
+
+/** Larguras mínimas das 4 primeiras colunas fixas (checkbox, Classificação, Resp ctrl, Master/Descritivo). */
+const STICKY_COL_WIDTHS = { check: 40, classificacao: 220, respCtrl: 80, masterDescritivo: 280 };
+const STICKY_LEFT_1 = 0;
+const STICKY_LEFT_2 = STICKY_COL_WIDTHS.check;
+const STICKY_LEFT_3 = STICKY_LEFT_2 + STICKY_COL_WIDTHS.classificacao;
+const STICKY_LEFT_4 = STICKY_LEFT_3 + STICKY_COL_WIDTHS.respCtrl;
+
+/** Renderiza cabeçalho com quebra de linha para colunas que devem ficar mais estreitas. */
+function ThQuebraLinha({
+  linha1,
+  linha2,
+  isNumeric,
+  ...rest
+}: {
+  linha1: string;
+  linha2: string;
+  isNumeric?: boolean;
+  [key: string]: unknown;
+}) {
+  return (
+    <Th isNumeric={isNumeric} whiteSpace="normal" fontSize="xs" title={`${linha1} ${linha2}`} {...rest}>
+      <Box as="span" whiteSpace="normal" lineHeight="tight" fontSize="xs">
+        {linha1}
+        <br />
+        {linha2}
+      </Box>
+    </Th>
+  );
+}
+
 export function ControleEmpenhos() {
   const {
     dashboard,
@@ -47,10 +80,14 @@ export function ControleEmpenhos() {
     setFiltroResponsavel,
     filtroClassificacao,
     setFiltroClassificacao,
+    filtroSetor,
+    setFiltroSetor,
     filtroStatus,
     setFiltroStatus,
     filtroComRegistro,
     setFiltroComRegistro,
+    opcoesClassificacao,
+    opcoesResponsavel,
     selectedId,
     editValues,
     saving,
@@ -137,20 +174,45 @@ export function ControleEmpenhos() {
               value={filtroCodigo}
               onChange={(e) => setFiltroCodigo(e.target.value)}
             />
-            <Input
-              placeholder="Responsável"
+            <Select
               size="sm"
               w="140px"
+              placeholder="Responsável"
               value={filtroResponsavel}
               onChange={(e) => setFiltroResponsavel(e.target.value)}
-            />
-            <Input
-              placeholder="Classificação"
+            >
+              <option value="">Todos</option>
+              {opcoesResponsavel.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </Select>
+            <Select
               size="sm"
               w="180px"
+              placeholder="Classificação"
               value={filtroClassificacao}
               onChange={(e) => setFiltroClassificacao(e.target.value)}
-            />
+            >
+              <option value="">Todas</option>
+              {opcoesClassificacao.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </Select>
+            <Select
+              size="sm"
+              w="110px"
+              placeholder="Setor"
+              value={filtroSetor}
+              onChange={(e) => setFiltroSetor(e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="UACE">UACE</option>
+              <option value="ULOG">ULOG</option>
+            </Select>
             <Select
               size="sm"
               w="120px"
@@ -210,29 +272,95 @@ export function ControleEmpenhos() {
             </Flex>
           ) : (
             <Table size="sm" whiteSpace="nowrap">
+              <colgroup>
+                <col style={{ width: `${STICKY_COL_WIDTHS.check}px`, minWidth: `${STICKY_COL_WIDTHS.check}px` }} />
+              </colgroup>
               <Thead bg="gray.50">
                 <Tr>
-                  <Th title="Habilita edição">✓</Th>
-                  <Th>Classificação</Th>
-                  <Th>Resp ctrl</Th>
-                  <Th>Master/Descritivo</Th>
+                  <Th
+                    title="Habilita edição"
+                    position="sticky"
+                    left={STICKY_LEFT_1}
+                    zIndex={2}
+                    bg="gray.50"
+                    w={`${STICKY_COL_WIDTHS.check}px`}
+                    minW={`${STICKY_COL_WIDTHS.check}px`}
+                    maxW={`${STICKY_COL_WIDTHS.check}px`}
+                    borderRightWidth="1px"
+                    borderColor="gray.200"
+                  >
+                    ✓
+                  </Th>
+                  <Th
+                    position="sticky"
+                    left={STICKY_LEFT_2}
+                    zIndex={2}
+                    bg="gray.50"
+                    w={`${STICKY_COL_WIDTHS.classificacao}px`}
+                    minW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                    maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                    borderRightWidth="1px"
+                    borderColor="gray.200"
+                    textAlign="left"
+                  >
+                    Classificação
+                  </Th>
+                  <Th
+                    position="sticky"
+                    left={STICKY_LEFT_3}
+                    zIndex={2}
+                    bg="gray.50"
+                    minW={`${STICKY_COL_WIDTHS.respCtrl}px`}
+                    borderRightWidth="1px"
+                    borderColor="gray.200"
+                  >
+                    Resp ctrl
+                  </Th>
+                  <Th
+                    position="sticky"
+                    left={STICKY_LEFT_4}
+                    zIndex={2}
+                    bg="gray.50"
+                    minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
+                    borderRightWidth="1px"
+                    borderColor="gray.200"
+                  >
+                    Master/Descritivo
+                  </Th>
                   <Th>Apres</Th>
-                  {consumoHeaders.map((h, i) => (
-                    <Th key={i} isNumeric fontSize="xs">{h}</Th>
-                  ))}
-                  <Th isNumeric>Média 6 meses</Th>
-                  <Th>Mês últ consumo</Th>
-                  <Th isNumeric>Qtde últ consumo</Th>
-                  <Th isNumeric>Estoque almox.</Th>
-                  <Th isNumeric>Estoque geral</Th>
-                  <Th isNumeric>Saldo empenhos</Th>
-                  <Th isNumeric title="Estoque almox. + Saldo empenhos">Estoque virtual</Th>
-                  <Th>Cobertura estoque</Th>
-                  <Th>Pré-empenho</Th>
+                  {consumoHeaders.map((h, i) => {
+                    const isLast = i === consumoHeaders.length - 1;
+                    const match = isLast && h.match(/^Mês Atual \((.+)\)$/);
+                    if (match) {
+                      return (
+                        <Th key={i} whiteSpace="normal" fontSize="xs">
+                          <Box as="span" whiteSpace="normal" lineHeight="tight" fontSize="xs">
+                            Mês Atual
+                            <br />
+                            ({match[1]})
+                          </Box>
+                        </Th>
+                      );
+                    }
+                    return (
+                      <Th key={i} isNumeric fontSize="xs">
+                        {h}
+                      </Th>
+                    );
+                  })}
+                  <ThQuebraLinha linha1="Média 6" linha2="meses" isNumeric />
+                  <ThQuebraLinha linha1="Mês últ" linha2="consumo" />
+                  <ThQuebraLinha linha1="Qtde últ" linha2="consumo" isNumeric />
+                  <ThQuebraLinha linha1="Estoque" linha2="almox." isNumeric />
+                  <ThQuebraLinha linha1="Outros" linha2="Estoques" isNumeric />
+                  <ThQuebraLinha linha1="Qtde a" linha2="Receber" isNumeric />
+                  <ThQuebraLinha linha1="Estoque" linha2="virtual" isNumeric title="Estoque almox. + Saldo empenhos" />
+                  <ThQuebraLinha linha1="Cobertura" linha2="estoque" />
+                  <ThQuebraLinha linha1="Pré-" linha2="Empenho" />
                   <Th>Registro</Th>
                   <Th>Vigência</Th>
-                  <Th isNumeric>Saldo registro</Th>
-                  <Th isNumeric>Valor unit. registro</Th>
+                  <ThQuebraLinha linha1="Saldo" linha2="registro" isNumeric />
+                  <ThQuebraLinha linha1="Valor unit." linha2="registro" isNumeric />
                   <Th>Qtde/emb.</Th>
                   <Th>Class. XYZ</Th>
                   <Th>Tipo armazen.</Th>
@@ -289,15 +417,66 @@ export function ControleEmpenhos() {
                   
                   return (
                     <Tr key={item.rowKey ?? item.id} bg={isSelected ? 'green.50' : undefined}>
-                      <Td>
+                      <Td
+                        position="sticky"
+                        left={STICKY_LEFT_1}
+                        zIndex={1}
+                        bg={isSelected ? 'green.50' : 'white'}
+                        w={`${STICKY_COL_WIDTHS.check}px`}
+                        minW={`${STICKY_COL_WIDTHS.check}px`}
+                        maxW={`${STICKY_COL_WIDTHS.check}px`}
+                        borderRightWidth="1px"
+                        borderColor="gray.200"
+                      >
                         <Checkbox
                           isChecked={isSelected}
                           onChange={() => toggleSelect(item)}
                         />
                       </Td>
-                      <Td maxW="200px" overflow="hidden" textOverflow="ellipsis">{item.classificacao ?? '-'}</Td>
-                      <Td maxW="80px" overflow="hidden" textOverflow="ellipsis">{item.respControle ?? '-'}</Td>
-                      <Td maxW="600px" overflow="hidden" textOverflow="ellipsis">{item.masterDescritivo ?? '-'}</Td>
+                      <Td
+                        w={`${STICKY_COL_WIDTHS.classificacao}px`}
+                        minW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                        maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        position="sticky"
+                        left={STICKY_LEFT_2}
+                        zIndex={1}
+                        bg={isSelected ? 'green.50' : 'white'}
+                        borderRightWidth="1px"
+                        borderColor="gray.200"
+                        textAlign="left"
+                      >
+                        {item.classificacao ?? '-'}
+                      </Td>
+                      <Td
+                        maxW="80px"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        position="sticky"
+                        left={STICKY_LEFT_3}
+                        zIndex={1}
+                        bg={isSelected ? 'green.50' : 'white'}
+                        minW={`${STICKY_COL_WIDTHS.respCtrl}px`}
+                        borderRightWidth="1px"
+                        borderColor="gray.200"
+                      >
+                        {item.respControle ?? '-'}
+                      </Td>
+                      <Td
+                        maxW="600px"
+                        overflow="hidden"
+                        textOverflow="ellipsis"
+                        position="sticky"
+                        left={STICKY_LEFT_4}
+                        zIndex={1}
+                        bg={isSelected ? 'green.50' : 'white'}
+                        minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
+                        borderRightWidth="1px"
+                        borderColor="gray.200"
+                      >
+                        {item.masterDescritivo ?? '-'}
+                      </Td>
                       <Td>{item.apres ?? '-'}</Td>
                       
                       {/* Colunas 6-12: Renderizadas com formatação e cores */}
@@ -331,16 +510,21 @@ export function ControleEmpenhos() {
                       </Td>
                       {/* Class. XYZ: valor do banco, somente leitura */}
                       <Td>{item.classificacaoXYZ ?? '-'}</Td>
-                      {/* Tipo armazen.: editável quando checkbox selecionado */}
+                      {/* Tipo armazen.: editável quando checkbox selecionado — Select com opções fixas */}
                       <Td>
                         {isSelected ? (
-                          <Input
+                          <Select
                             size="xs"
+                            minW="100px"
                             placeholder="Tipo"
-                            minW="80px"
                             value={edits.tipo_armazenamento ?? ''}
                             onChange={(e) => updateEdit(item.id, 'tipo_armazenamento', e.target.value)}
-                          />
+                          >
+                            <option value="">—</option>
+                            {TIPO_ARMAZEN_OPCOES.map((op) => (
+                              <option key={op} value={op}>{op}</option>
+                            ))}
+                          </Select>
                         ) : (
                           item.tipoArmazenamento ?? '-'
                         )}

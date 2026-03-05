@@ -51,10 +51,8 @@ export const formatarMesano = (mesano: number | null | undefined, fallback = '-'
 
 /**
  * Renderiza célula de consumo (colunas 6-12 consumo mês-6 até mês atual).
- * Aplica cor verde claro para consumos válidos, cinza claro para zero.
- * 
- * @param consumo Valor de consumo (inteiro)
- * @param index Índice do mês (0=mês-6, ..., 6=mês atual)
+ * Estilo: valor zero = texto cinza; valor > 0 = texto preto e negrito.
+ * Fundo opcional: cinza claro para zero, verde claro para positivo (mantido para consistência visual).
  */
 export function ColunaConsumoCell({
   consumo,
@@ -63,11 +61,18 @@ export function ColunaConsumoCell({
 }): JSX.Element {
   const valor = Number(consumo) || 0;
   const texto = formatarIntThousands(valor);
-  const bg = valor === 0 ? 'gray.50' : 'green.50';
+  const isZero = valor === 0;
+  const bg = isZero ? 'gray.50' : 'green.50';
 
   return (
     <Td isNumeric bg={bg} title={`Consumo: ${valor}`}>
-      {texto}
+      <Text
+        as="span"
+        color={isZero ? 'gray.500' : 'black'}
+        fontWeight={isZero ? 'normal' : 'bold'}
+      >
+        {texto}
+      </Text>
     </Td>
   );
 }

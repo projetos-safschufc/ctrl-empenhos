@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get('/dashboard', controleEmpenhoController.getDashboard.bind(controleEmpenhoController));
+router.get('/filtros', controleEmpenhoController.getOpcoesFiltros.bind(controleEmpenhoController));
 router.get('/', controleEmpenhoController.getItens.bind(controleEmpenhoController));
 router.post('/historico', invalidateControleEmpenhosCache, controleEmpenhoController.salvarHistorico.bind(controleEmpenhoController));
 

@@ -4,6 +4,7 @@ export interface CatalogoFilters {
   codigo?: string;
   responsavel?: string;
   classificacao?: string;
+  setor?: string;
   comRegistro?: boolean;
 }
 
@@ -15,10 +16,14 @@ export const catalogoRepository = {
       where.master = { contains: filters.codigo.trim(), mode: 'insensitive' };
     }
     if (filters.responsavel?.trim()) {
-      where.respControle = { contains: filters.responsavel.trim(), mode: 'insensitive' };
+      where.respControle = filters.responsavel.trim();
     }
     if (filters.classificacao?.trim()) {
-      where.servAquisicao = { contains: filters.classificacao.trim(), mode: 'insensitive' };
+      where.servAquisicao = filters.classificacao.trim();
+    }
+    if (filters.setor?.trim()) {
+      const setor = filters.setor.trim().toUpperCase();
+      where.setor_controle = setor;
     }
 
     const [items, total] = await Promise.all([
@@ -42,10 +47,14 @@ export const catalogoRepository = {
       where.master = { contains: filters.codigo.trim(), mode: 'insensitive' };
     }
     if (filters.responsavel?.trim()) {
-      where.respControle = { contains: filters.responsavel.trim(), mode: 'insensitive' };
+      where.respControle = filters.responsavel.trim();
     }
     if (filters.classificacao?.trim()) {
-      where.servAquisicao = { contains: filters.classificacao.trim(), mode: 'insensitive' };
+      where.servAquisicao = filters.classificacao.trim();
+    }
+    if (filters.setor?.trim()) {
+      const setor = filters.setor.trim().toUpperCase();
+      where.setor_controle = setor;
     }
 
     return prisma.safsCatalogo.count({ where });
@@ -75,6 +84,28 @@ export const catalogoRepository = {
       },
       orderBy: { master: 'asc' },
     });
+  },
+
+  /** Retorna valores distintos de servAquisicao (classificação) para uso em filtros (ex.: Select). */
+  async findDistinctClassificacoes(): Promise<string[]> {
+    const rows = await prisma.safsCatalogo.findMany({
+      where: { servAquisicao: { not: null } },
+      select: { servAquisicao: true },
+      distinct: ['servAquisicao'],
+      orderBy: { servAquisicao: 'asc' },
+    });
+    return rows.map((r) => r.servAquisicao as string).filter(Boolean);
+  },
+
+  /** Retorna valores distintos de respControle (responsável) para uso em filtros (ex.: Select). */
+  async findDistinctResponsaveis(): Promise<string[]> {
+    const rows = await prisma.safsCatalogo.findMany({
+      where: { respControle: { not: null } },
+      select: { respControle: true },
+      distinct: ['respControle'],
+      orderBy: { respControle: 'asc' },
+    });
+    return rows.map((r) => r.respControle as string).filter(Boolean);
   },
 
   /** Retorna mapa master -> descricao para uma lista de códigos (para batch). */
