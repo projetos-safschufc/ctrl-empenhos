@@ -9,10 +9,16 @@ function parsePage(s: unknown): number {
   return Number.isFinite(n) && n >= 1 ? n : 1;
 }
 
-function parsePageSize(s: unknown): number {
+/** pageSize máximo para listagem paginada. */
+const MAX_PAGE_SIZE = 100;
+/** pageSize máximo quando export=true (exportação Excel de todos os registros filtrados). */
+const MAX_PAGE_SIZE_EXPORT = 5000;
+
+function parsePageSize(s: unknown, isExport = false): number {
   const n = parseInt(String(s), 10);
   if (!Number.isFinite(n) || n < 1) return 20;
-  return Math.min(n, 100);
+  const cap = isExport ? MAX_PAGE_SIZE_EXPORT : MAX_PAGE_SIZE;
+  return Math.min(n, cap);
 }
 
 export const controleEmpenhoController = {
@@ -24,7 +30,8 @@ export const controleEmpenhoController = {
     const status = req.query.status as string | undefined;
     const comRegistro = req.query.comRegistro as string | undefined;
     const page = parsePage(req.query.page);
-    const pageSize = parsePageSize(req.query.pageSize);
+    const isExport = req.query.export === 'true';
+    const pageSize = parsePageSize(req.query.pageSize, isExport);
 
     const filters: CatalogoFilters & { status?: string; comRegistro?: boolean } = {};
     if (codigo) filters.codigo = codigo;

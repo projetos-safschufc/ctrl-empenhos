@@ -1,11 +1,10 @@
 /**
  * Analytics Dashboard - Dashboard Analítico Enterprise
- * 
- * Dashboard com métricas avançadas, gráficos e insights
- * Visualizações interativas para análise de dados
+ *
+ * Foco em gestão de estoque. Gráficos de coluna, barras e rosca com dados reais.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -24,82 +23,262 @@ import {
   Alert,
   AlertIcon,
   Icon,
+  List,
+  ListItem,
+  ListIcon,
+  UnorderedList,
+  Collapse,
+  useDisclosure,
 } from '@chakra-ui/react';
 import {
   MdDashboard,
-  MdPeople,
-  MdSpeed,
   MdCheckCircle,
   MdError,
   MdRefresh,
+  MdWarning,
+  MdInventory,
+  MdExpandMore,
+  MdExpandLess,
 } from 'react-icons/md';
 import { formatDate } from '../utils/date';
+import { analyticsApi, controleEmpenhosApi } from '../api/client';
+import type {
+  AnalyticsDashboardData,
+  AnalyticsTrendData,
+  AnalyticsDistributionData,
+  GestaoEstoqueMetrics,
+} from '../api/client';
 
-// ========== INTERFACES ==========
+// ========== GRÁFICOS ==========
 
-interface AnalyticsData {
-  totalMateriais: number;
-  totalPendencias: number;
-  totalAtencao: number;
-  totalCritico: number;
-  avgResponseTime: number;
-  systemUptime: number;
-  cacheHitRate: number;
-  activeUsers: number;
-  dailyLogins: number;
-  totalExports: number;
-  tendencias: {
-    materiais: TrendData[];
-    usuarios: TrendData[];
-    performance: TrendData[];
-    atividades: TrendData[];
-  };
-  distribuicoes: {
-    statusMateriais: DistributionData[];
-    atividadesPorUsuario: DistributionData[];
-    acessosPorHora: DistributionData[];
-    errosPorEndpoint: DistributionData[];
-  };
+/** Gráfico de coluna (barras verticais) para indicadores de estoque */
+function ColumnChart({
+  data,
+  title,
+  height = 220,
+}: {
+  data: { label: string; value: number; color?: string }[];
+  title: string;
+  height?: number;
+}) {
+  if (!data.length) {
+    return (
+      <Card bg="white" borderColor="gray.200" borderWidth="1px" h={`${height + 60}px`}>
+        <CardHeader pb={2}>
+          <Text fontWeight="bold">{title}</Text>
+        </CardHeader>
+        <CardBody pt={0}>
+          <Flex align="center" justify="center" h={`${height}px`}>
+            <Text color="gray.500" fontSize="sm">Sem dados disponíveis</Text>
+          </Flex>
+        </CardBody>
+      </Card>
+    );
+  }
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const colors = ['#2F855A', '#3182CE', '#805AD5', '#DD6B20', '#E53E3E', '#38A169'];
+
+  return (
+    <Card bg="white" borderColor="gray.200" borderWidth="1px" h={`${height + 60}px`}>
+      <CardHeader pb={2}>
+        <Text fontWeight="bold">{title}</Text>
+      </CardHeader>
+      <CardBody pt={0}>
+        <Flex h={`${height}px`} align="flex-end" justify="space-around" gap={2}>
+          {data.map((item, i) => (
+            <VStack key={i} flex={1} spacing={1}>
+              <Text fontSize="xs" fontWeight="bold" noOfLines={1} title={String(item.value)}>
+                {item.value >= 1000 ? `${(item.value / 1000).toFixed(1)}k` : item.value}
+              </Text>
+              <Box
+                w="full"
+                minH="8px"
+                bg={item.color || colors[i % colors.length]}
+                borderRadius="md"
+                style={{
+                  height: `${Math.max((item.value / maxVal) * 100, 4)}%`,
+                  minHeight: '20px',
+                }}
+                title={`${item.label}: ${item.value.toLocaleString('pt-BR')}`}
+              />
+              <Text fontSize="xs" noOfLines={2} textAlign="center" lineHeight="tight">
+                {item.label}
+              </Text>
+            </VStack>
+          ))}
+        </Flex>
+      </CardBody>
+    </Card>
+  );
 }
 
-interface TrendData {
-  date: string;
-  value: number;
-  label?: string;
+/** Gráfico de rosca (donut) para distribuição por status */
+function DonutChart({
+  data,
+  title,
+  size = 200,
+}: {
+  data: AnalyticsDistributionData[];
+  title: string;
+  size?: number;
+}) {
+  if (!data.length) {
+    return (
+      <Card bg="white" borderColor="gray.200" borderWidth="1px">
+        <CardHeader pb={2}>
+          <Text fontWeight="bold">{title}</Text>
+        </CardHeader>
+        <CardBody pt={0}>
+          <Flex align="center" justify="center" h={`${size}px`}>
+            <Text color="gray.500" fontSize="sm">Sem dados disponíveis</Text>
+          </Flex>
+        </CardBody>
+      </Card>
+    );
+  }
+  const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  const colors = data.map((d) => d.color || '#718096');
+  let acc = 0;
+  const segments = data.map((d, i) => {
+    const pct = (d.value / total) * 100;
+    const start = acc;
+    acc += pct;
+    return { ...d, start: (start / 100) * 360, length: (pct / 100) * 360, color: colors[i] };
+  });
+
+  const r = 40;
+  const cx = 50;
+  const cy = 50;
+  const strokeWidth = 18;
+
+  return (
+    <Card bg="white" borderColor="gray.200" borderWidth="1px">
+      <CardHeader pb={2}>
+        <Text fontWeight="bold">{title}</Text>
+      </CardHeader>
+      <CardBody pt={0}>
+        <Flex direction="column" align="center">
+          <Box w={`${size}px`} h={`${size}px`} position="relative">
+            <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%' }}>
+              {segments.map((seg, i) => (
+                <circle
+                  key={i}
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill="none"
+                  stroke={seg.color}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={`${(seg.length / 360) * 2 * Math.PI * r} ${2 * Math.PI * r}`}
+                  strokeDashoffset={-(seg.start / 360) * 2 * Math.PI * r}
+                  transform={`rotate(-90 ${cx} ${cy})`}
+                />
+              ))}
+              <circle
+                cx={cx}
+                cy={cy}
+                r={r - strokeWidth / 2}
+                fill="white"
+              />
+            </svg>
+          </Box>
+          <VStack spacing={1} mt={2} align="stretch" w="full">
+            {data.map((item, i) => (
+              <Flex key={i} justify="space-between" align="center" fontSize="sm">
+                <HStack spacing={2}>
+                  <Box w="3" h="3" borderRadius="sm" bg={colors[i]} />
+                  <Text noOfLines={1}>{item.label}</Text>
+                </HStack>
+                <Badge fontSize="xs">{item.value} ({item.percentage}%)</Badge>
+              </Flex>
+            ))}
+          </VStack>
+        </Flex>
+      </CardBody>
+    </Card>
+  );
 }
 
-interface DistributionData {
-  label: string;
-  value: number;
-  percentage: number;
-  color?: string;
+/** Gráfico de barras horizontais (reutilizável) */
+function BarChart({
+  data,
+  title,
+  height = 220,
+}: {
+  data: AnalyticsDistributionData[];
+  title: string;
+  height?: number;
+}) {
+  if (!data.length) {
+    return (
+      <Card bg="white" borderColor="gray.200" borderWidth="1px" h={`${height + 60}px`}>
+        <CardHeader pb={2}>
+          <Text fontWeight="bold">{title}</Text>
+        </CardHeader>
+        <CardBody pt={0}>
+          <Flex align="center" justify="center" h={`${height}px`}>
+            <Text color="gray.500" fontSize="sm">Sem dados disponíveis</Text>
+          </Flex>
+        </CardBody>
+      </Card>
+    );
+  }
+  const maxValue = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <Card bg="white" borderColor="gray.200" borderWidth="1px" h={`${height + 60}px`}>
+      <CardHeader pb={2}>
+        <Text fontWeight="bold">{title}</Text>
+      </CardHeader>
+      <CardBody pt={0}>
+        <VStack spacing={3} align="stretch">
+          {data.slice(0, 6).map((item, index) => (
+            <Box key={index}>
+              <Flex justify="space-between" mb={1}>
+                <Text fontSize="sm" noOfLines={1}>{item.label}</Text>
+                <Text fontSize="sm" fontWeight="bold">{item.value.toLocaleString('pt-BR')}</Text>
+              </Flex>
+              <Box bg="gray.200" h="8px" borderRadius="full" overflow="hidden">
+                <Box
+                  bg={item.color || 'brand.500'}
+                  h="full"
+                  w={`${(item.value / maxValue) * 100}%`}
+                  transition="width 0.5s ease"
+                  borderRadius="full"
+                />
+              </Box>
+            </Box>
+          ))}
+        </VStack>
+      </CardBody>
+    </Card>
+  );
 }
 
-// ========== COMPONENTES ==========
+// ========== COMPONENTES AUXILIARES ==========
 
-function MetricCard({ 
-  title, 
-  value, 
-  unit = '', 
-  trend, 
-  icon, 
+function MetricCard({
+  title,
+  value,
+  unit = '',
+  trend,
+  icon,
   color = 'brand',
-  isLoading = false 
+  isLoading = false,
 }: {
   title: string;
   value: number | string;
   unit?: string;
   trend?: { value: number; isPositive: boolean };
-  icon: any;
+  icon: React.ElementType;
   color?: string;
   isLoading?: boolean;
 }) {
-  const cardBg = 'white';
-  const borderColor = 'gray.200';
   const textSecondary = 'gray.600';
+  const displayValue =
+    typeof value === 'number' ? value.toLocaleString('pt-BR') : value ?? '–';
 
   return (
-    <Card bg={cardBg} borderColor={borderColor} borderWidth="1px">
+    <Card bg="white" borderColor="gray.200" borderWidth="1px">
       <CardBody>
         <Flex align="center" justify="space-between">
           <Box>
@@ -110,8 +289,12 @@ function MetricCard({
               <Spinner size="sm" />
             ) : (
               <Text fontSize="2xl" fontWeight="bold">
-                {typeof value === 'number' ? value.toLocaleString() : value}
-                {unit && <Text as="span" fontSize="sm" color={textSecondary} ml={1}>{unit}</Text>}
+                {displayValue}
+                {unit && (
+                  <Text as="span" fontSize="sm" color={textSecondary} ml={1}>
+                    {unit}
+                  </Text>
+                )}
               </Text>
             )}
             {trend && (
@@ -130,101 +313,49 @@ function MetricCard({
   );
 }
 
-function SimpleChart({ 
-  data, 
-  title, 
-  type = 'bar',
-  height = 200 
-}: {
-  data: DistributionData[];
-  title: string;
-  type?: 'bar' | 'pie';
-  height?: number;
-}) {
-  const cardBg = 'white';
-  const borderColor = 'gray.200';
-
-  if (type === 'bar') {
-    const maxValue = Math.max(...data.map(d => d.value));
-
-    return (
-      <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" h={`${height + 80}px`}>
-        <CardHeader pb={2}>
-          <Text fontWeight="bold">{title}</Text>
-        </CardHeader>
-        <CardBody pt={0}>
-          <VStack spacing={3} align="stretch">
-            {data.slice(0, 5).map((item, index) => (
-              <Box key={index}>
-                <Flex justify="space-between" mb={1}>
-                  <Text fontSize="sm" noOfLines={1}>{item.label}</Text>
-                  <Text fontSize="sm" fontWeight="bold">{item.value}</Text>
-                </Flex>
-                <Box bg="gray.200" h="6px" borderRadius="full" overflow="hidden">
-                  <Box
-                    bg={item.color || 'brand.500'}
-                    h="full"
-                    w={`${(item.value / maxValue) * 100}%`}
-                    transition="width 0.5s ease"
-                  />
-                </Box>
-              </Box>
-            ))}
-          </VStack>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  // Gráfico de pizza simples
-  return (
-    <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" h={`${height + 80}px`}>
-      <CardHeader pb={2}>
-        <Text fontWeight="bold">{title}</Text>
-      </CardHeader>
-      <CardBody pt={0}>
-        <VStack spacing={2} align="stretch">
-          {data.slice(0, 4).map((item, index) => (
-            <Flex key={index} justify="space-between" align="center">
-              <HStack>
-                <Box
-                  w="12px"
-                  h="12px"
-                  borderRadius="full"
-                  bg={item.color || `brand.${(index + 3) * 100}`}
-                />
-                <Text fontSize="sm" noOfLines={1}>{item.label}</Text>
-              </HStack>
-              <HStack spacing={2}>
-                <Text fontSize="sm" fontWeight="bold">{item.value}</Text>
-                <Badge colorScheme="gray" fontSize="xs">
-                  {item.percentage}%
-                </Badge>
-              </HStack>
-            </Flex>
-          ))}
-        </VStack>
-      </CardBody>
-    </Card>
-  );
+/** Converte gestaoEstoque em dados para gráfico de colunas */
+function buildColumnDataFromGestao(ge: GestaoEstoqueMetrics | null | undefined) {
+  if (!ge) return [];
+  return [
+    { label: 'Estoque Almox.', value: ge.totalEstoqueAlmoxarifados ?? 0, color: '#3182CE' },
+    { label: 'Estoque Virtual', value: ge.totalEstoqueVirtual ?? 0, color: '#38A169' },
+    { label: 'Qtde a Receber', value: ge.totalSaldoEmpenhos ?? 0, color: '#805AD5' },
+    { label: 'Registros Ativos', value: ge.totalRegistrosAtivos ?? 0, color: '#DD6B20' },
+    { label: 'Crítico', value: ge.totalCritico ?? 0, color: '#E53E3E' },
+    { label: 'Atenção', value: ge.totalAtencao ?? 0, color: '#D69E2E' },
+  ];
 }
 
-function TrendChart({ 
-  data, 
-  title, 
-  height = 150 
+/** Converte totais de status em dados para donut (distribuição por status) */
+function buildDonutDataFromGestao(ge: GestaoEstoqueMetrics | null | undefined): AnalyticsDistributionData[] {
+  if (!ge) return [];
+  const total = (ge.totalMateriais ?? 0) || 1;
+  const normal = Math.max(0, (ge.totalMateriais ?? 0) - (ge.totalCritico ?? 0) - (ge.totalAtencao ?? 0) - (ge.totalPendencias ?? 0));
+  const items = [
+    { label: 'Normal', value: Math.max(0, normal), color: '#38A169' },
+    { label: 'Atenção', value: ge.totalAtencao ?? 0, color: '#DD6B20' },
+    { label: 'Crítico', value: ge.totalCritico ?? 0, color: '#E53E3E' },
+    { label: 'Pendências', value: ge.totalPendencias ?? 0, color: '#805AD5' },
+  ].filter((d) => d.value > 0);
+  return items.map((d) => ({
+    ...d,
+    percentage: Math.round((d.value / total) * 100),
+  }));
+}
+
+function TrendChart({
+  data,
+  title,
+  height = 150,
 }: {
-  data: TrendData[];
+  data: AnalyticsTrendData[];
   title: string;
   height?: number;
 }) {
-  const cardBg = 'white';
-  const borderColor = 'gray.200';
   const textSecondary = 'gray.600';
-  
   if (data.length === 0) {
     return (
-      <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" h={`${height + 80}px`}>
+      <Card bg="white" borderColor="gray.200" borderWidth="1px" h={`${height + 80}px`}>
         <CardHeader pb={2}>
           <Text fontWeight="bold">{title}</Text>
         </CardHeader>
@@ -236,31 +367,30 @@ function TrendChart({
       </Card>
     );
   }
-
-  const maxValue = Math.max(...data.map(d => d.value));
-  const minValue = Math.min(...data.map(d => d.value));
+  const maxValue = Math.max(...data.map((d) => d.value));
+  const minValue = Math.min(...data.map((d) => d.value));
   const range = maxValue - minValue || 1;
 
   return (
-    <Card bg={cardBg} borderColor={borderColor} borderWidth="1px" h={`${height + 80}px`}>
+    <Card bg="white" borderColor="gray.200" borderWidth="1px" h={`${height + 80}px`}>
       <CardHeader pb={2}>
         <Text fontWeight="bold">{title}</Text>
       </CardHeader>
       <CardBody pt={0}>
         <Box position="relative" h={`${height}px`}>
-          {/* Linha de tendência simples */}
           <svg width="100%" height="100%" style={{ position: 'absolute' }}>
             <polyline
               fill="none"
               stroke="var(--chakra-colors-brand-500)"
               strokeWidth="2"
-              points={data.map((point, index) => {
-                const x = (index / (data.length - 1)) * 100;
-                const y = 100 - ((point.value - minValue) / range) * 80;
-                return `${x}%,${y}%`;
-              }).join(' ')}
+              points={data
+                .map((point, index) => {
+                  const x = (index / (data.length - 1)) * 100;
+                  const y = 100 - ((point.value - minValue) / range) * 80;
+                  return `${x}%,${y}%`;
+                })
+                .join(' ')}
             />
-            {/* Pontos */}
             {data.map((point, index) => {
               const x = (index / (data.length - 1)) * 100;
               const y = 100 - ((point.value - minValue) / range) * 80;
@@ -275,12 +405,14 @@ function TrendChart({
               );
             })}
           </svg>
-          
-          {/* Labels do eixo X */}
           <Flex position="absolute" bottom="0" w="full" justify="space-between">
             {data.map((point, index) => (
               <Text key={index} fontSize="xs" color={textSecondary}>
-                {point.label || new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                {point.label ||
+                  new Date(point.date).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                  })}
               </Text>
             ))}
           </Flex>
@@ -293,107 +425,39 @@ function TrendChart({
 // ========== COMPONENTE PRINCIPAL ==========
 
 export function AnalyticsDashboard() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [data, setData] = useState<AnalyticsDashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('7');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [filtroResponsavel, setFiltroResponsavel] = useState('');
+  const [filtroSetor, setFiltroSetor] = useState('');
+  const [filtroClassificacao, setFiltroClassificacao] = useState('');
+  const [opcoesResponsavel, setOpcoesResponsavel] = useState<string[]>([]);
+  const [opcoesClassificacao, setOpcoesClassificacao] = useState<string[]>([]);
+  const systemMetricsOpen = useDisclosure({ defaultIsOpen: false });
 
-  const cardBg = 'white';
-  const borderColor = 'gray.200';
   const textSecondary = 'gray.600';
 
-  // Simular carregamento de dados (em produção, usar API real)
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    
     try {
-      // Simular delay de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Dados simulados (em produção, buscar de /api/analytics/dashboard)
-      const mockData: AnalyticsData = {
-        totalMateriais: 1247,
-        totalPendencias: 23,
-        totalAtencao: 45,
-        totalCritico: 12,
-        avgResponseTime: 245,
-        systemUptime: 99.8,
-        cacheHitRate: 87.3,
-        activeUsers: 8,
-        dailyLogins: 15,
-        totalExports: 6,
-        tendencias: {
-          materiais: [
-            { date: '2026-02-07', value: 120 },
-            { date: '2026-02-08', value: 135 },
-            { date: '2026-02-09', value: 128 },
-            { date: '2026-02-10', value: 142 },
-            { date: '2026-02-11', value: 138 },
-            { date: '2026-02-12', value: 155 },
-            { date: '2026-02-13', value: 147 },
-          ],
-          usuarios: [
-            { date: '2026-02-07', value: 5 },
-            { date: '2026-02-08', value: 8 },
-            { date: '2026-02-09', value: 6 },
-            { date: '2026-02-10', value: 9 },
-            { date: '2026-02-11', value: 7 },
-            { date: '2026-02-12', value: 8 },
-            { date: '2026-02-13', value: 8 },
-          ],
-          performance: [
-            { date: '2026-02-07', value: 320 },
-            { date: '2026-02-08', value: 280 },
-            { date: '2026-02-09', value: 295 },
-            { date: '2026-02-10', value: 260 },
-            { date: '2026-02-11', value: 275 },
-            { date: '2026-02-12', value: 250 },
-            { date: '2026-02-13', value: 245 },
-          ],
-          atividades: [
-            { date: '2026-02-07', value: 45 },
-            { date: '2026-02-08', value: 62 },
-            { date: '2026-02-09', value: 38 },
-            { date: '2026-02-10', value: 71 },
-            { date: '2026-02-11', value: 55 },
-            { date: '2026-02-12', value: 68 },
-            { date: '2026-02-13', value: 59 },
-          ],
-        },
-        distribuicoes: {
-          statusMateriais: [
-            { label: 'Normal', value: 1167, percentage: 94, color: '#48BB78' },
-            { label: 'Atenção', value: 45, percentage: 4, color: '#ED8936' },
-            { label: 'Crítico', value: 12, percentage: 1, color: '#F56565' },
-            { label: 'Pendências', value: 23, percentage: 2, color: '#9F7AEA' },
-          ],
-          atividadesPorUsuario: [
-            { label: 'Dashboard', value: 125, percentage: 35 },
-            { label: 'Controle Empenhos', value: 89, percentage: 25 },
-            { label: 'Movimentação', value: 67, percentage: 19 },
-            { label: 'Exportações', value: 45, percentage: 13 },
-            { label: 'Outros', value: 28, percentage: 8 },
-          ],
-          acessosPorHora: [
-            { label: '8h', value: 15, percentage: 12 },
-            { label: '9h', value: 28, percentage: 22 },
-            { label: '10h', value: 35, percentage: 28 },
-            { label: '11h', value: 22, percentage: 17 },
-            { label: '14h', value: 18, percentage: 14 },
-            { label: '15h', value: 9, percentage: 7 },
-          ],
-          errosPorEndpoint: [
-            { label: '/api/controle-empenhos', value: 3, percentage: 43, color: '#F56565' },
-            { label: '/api/movimentacao', value: 2, percentage: 29, color: '#F56565' },
-            { label: '/api/auth/login', value: 1, percentage: 14, color: '#F56565' },
-            { label: '/api/cache', value: 1, percentage: 14, color: '#F56565' },
-          ],
-        },
-      };
-      
-      setData(mockData);
+      const filters =
+        filtroResponsavel || filtroSetor || filtroClassificacao
+          ? {
+              ...(filtroResponsavel ? { responsavel: filtroResponsavel } : {}),
+              ...(filtroSetor ? { setor: filtroSetor } : {}),
+              ...(filtroClassificacao ? { classificacao: filtroClassificacao } : {}),
+            }
+          : undefined;
+      const res = await analyticsApi.getDashboard(filters);
+      if (res.error || !res.data) {
+        setError(res.error ?? 'Erro ao carregar dados analíticos');
+        return;
+      }
+      const body = res.data as { data?: AnalyticsDashboardData };
+      setData(body.data ?? null);
       setLastUpdate(new Date());
     } catch (err) {
       setError('Erro ao carregar dados analíticos');
@@ -401,11 +465,24 @@ export function AnalyticsDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filtroResponsavel, filtroSetor, filtroClassificacao]);
 
   useEffect(() => {
     loadAnalytics();
-  }, [period]);
+  }, [loadAnalytics]);
+
+  useEffect(() => {
+    controleEmpenhosApi.getOpcoesFiltros().then((res) => {
+      if (res.data && 'classificacoes' in res.data && 'responsaveis' in res.data) {
+        const d = res.data as { classificacoes: string[]; responsaveis: string[] };
+        setOpcoesClassificacao(d.classificacoes ?? []);
+        setOpcoesResponsavel(d.responsaveis ?? []);
+      }
+    });
+  }, []);
+
+  const hasFilters = !!(filtroResponsavel || filtroSetor || filtroClassificacao);
+  const ge = data?.gestaoEstoque;
 
   if (error) {
     return (
@@ -421,7 +498,7 @@ export function AnalyticsDashboard() {
   return (
     <Box p={6}>
       {/* Header */}
-      <Flex justify="space-between" align="center" mb={6}>
+      <Flex justify="space-between" align="center" flexWrap="wrap" gap={4} mb={6}>
         <Box>
           <Heading size="lg" mb={2}>
             <Icon as={MdDashboard} mr={3} />
@@ -431,8 +508,44 @@ export function AnalyticsDashboard() {
             Última atualização: {formatDate(lastUpdate, 'dd/MM/yyyy HH:mm')}
           </Text>
         </Box>
-        <HStack spacing={3}>
-          <Select value={period} onChange={(e) => setPeriod(e.target.value)} w="150px">
+        <HStack spacing={3} flexWrap="wrap">
+          <Select
+            placeholder="Responsável"
+            value={filtroResponsavel}
+            onChange={(e) => setFiltroResponsavel(e.target.value)}
+            w="160px"
+            size="sm"
+          >
+            {opcoesResponsavel.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Select>
+          <Select
+            placeholder="Setor"
+            value={filtroSetor}
+            onChange={(e) => setFiltroSetor(e.target.value)}
+            w="120px"
+            size="sm"
+          >
+            <option value="UACE">UACE</option>
+            <option value="ULOG">ULOG</option>
+          </Select>
+          <Select
+            placeholder="Classificação"
+            value={filtroClassificacao}
+            onChange={(e) => setFiltroClassificacao(e.target.value)}
+            w="180px"
+            size="sm"
+          >
+            {opcoesClassificacao.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+          <Select value={period} onChange={(e) => setPeriod(e.target.value)} w="150px" size="sm">
             <option value="7">Últimos 7 dias</option>
             <option value="30">Últimos 30 dias</option>
             <option value="90">Últimos 90 dias</option>
@@ -442,121 +555,239 @@ export function AnalyticsDashboard() {
             onClick={loadAnalytics}
             isLoading={isLoading}
             variant="outline"
+            size="sm"
           >
             Atualizar
           </Button>
         </HStack>
       </Flex>
 
-      {/* Métricas Principais */}
-      <Grid templateColumns="repeat(auto-fit, minmax(250px, 1fr))" gap={4} mb={6}>
+      {/* Visão Gestão de Estoque */}
+      <Heading size="md" mb={3} color="brand.darkGreen">
+        Visão Gestão de Estoque
+      </Heading>
+      <Grid templateColumns="repeat(auto-fit, minmax(180px, 1fr))" gap={3} mb={6}>
         <MetricCard
           title="Total de Materiais"
-          value={data?.totalMateriais || 0}
-          icon={MdCheckCircle}
+          value={ge?.totalMateriais ?? data?.totalMateriais ?? 0}
+          icon={MdInventory}
           color="brand"
-          trend={{ value: 2.3, isPositive: true }}
           isLoading={isLoading}
         />
         <MetricCard
-          title="Itens Críticos"
-          value={data?.totalCritico || 0}
+          title="Estoque Almoxarifados"
+          value={ge?.totalEstoqueAlmoxarifados ?? 0}
+          icon={MdInventory}
+          color="blue"
+          isLoading={isLoading}
+        />
+        <MetricCard
+          title="Estoque Virtual"
+          value={ge?.totalEstoqueVirtual ?? 0}
+          icon={MdInventory}
+          color="teal"
+          isLoading={isLoading}
+        />
+        <MetricCard
+          title="Qtde a Receber (Empenhos)"
+          value={ge?.totalSaldoEmpenhos ?? 0}
+          icon={MdCheckCircle}
+          color="purple"
+          isLoading={isLoading}
+        />
+        <MetricCard
+          title="Com Registro Ativo"
+          value={ge?.materiaisComRegistroAtivo ?? 0}
+          icon={MdCheckCircle}
+          color="green"
+          isLoading={isLoading}
+        />
+        <MetricCard
+          title="Registros Ativos"
+          value={ge?.totalRegistrosAtivos ?? 0}
+          icon={MdCheckCircle}
+          color="cyan"
+          isLoading={isLoading}
+        />
+        <MetricCard
+          title="Pendências"
+          value={ge?.totalPendencias ?? data?.totalPendencias ?? 0}
+          icon={MdWarning}
+          color="purple"
+          isLoading={isLoading}
+        />
+        <MetricCard
+          title="Crítico"
+          value={ge?.totalCritico ?? data?.totalCritico ?? 0}
           icon={MdError}
           color="red"
-          trend={{ value: 1.2, isPositive: false }}
           isLoading={isLoading}
         />
         <MetricCard
-          title="Usuários Ativos"
-          value={data?.activeUsers || 0}
-          icon={MdPeople}
-          color="green"
-          trend={{ value: 15.8, isPositive: true }}
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Tempo de Resposta"
-          value={data?.avgResponseTime || 0}
-          unit="ms"
-          icon={MdSpeed}
-          color="blue"
-          trend={{ value: 8.5, isPositive: false }}
+          title="Atenção"
+          value={ge?.totalAtencao ?? data?.totalAtencao ?? 0}
+          icon={MdWarning}
+          color="orange"
           isLoading={isLoading}
         />
       </Grid>
 
-      {/* Gráficos de Tendência */}
-      <Grid templateColumns="repeat(auto-fit, minmax(300px, 1fr))" gap={4} mb={6}>
-        <TrendChart
-          data={data?.tendencias.materiais || []}
-          title="Tendência de Materiais Críticos"
+      {/* Gráficos de Gestão de Estoque: coluna, rosca e barras */}
+      <Heading size="md" mb={3} color="brand.darkGreen">
+        Gráficos de Gestão de Estoque
+      </Heading>
+      <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }} gap={4} mb={6}>
+        <ColumnChart
+          data={buildColumnDataFromGestao(ge)}
+          title="Indicadores de Estoque (valores)"
+          height={220}
         />
-        <TrendChart
-          data={data?.tendencias.usuarios || []}
-          title="Usuários Ativos por Dia"
+        <DonutChart
+          data={
+            (data?.distribuicoes?.statusMateriais?.length
+              ? data.distribuicoes.statusMateriais
+              : buildDonutDataFromGestao(ge)) as AnalyticsDistributionData[]
+          }
+          title="Distribuição por Status (rosça)"
+          size={200}
         />
-        <TrendChart
-          data={data?.tendencias.performance || []}
-          title="Performance do Sistema (ms)"
-        />
-        <TrendChart
-          data={data?.tendencias.atividades || []}
-          title="Atividades por Dia"
-        />
-      </Grid>
-
-      {/* Distribuições */}
-      <Grid templateColumns="repeat(auto-fit, minmax(300px, 1fr))" gap={4} mb={6}>
-        <SimpleChart
-          data={data?.distribuicoes.statusMateriais || []}
-          title="Distribuição por Status"
-          type="pie"
-        />
-        <SimpleChart
-          data={data?.distribuicoes.atividadesPorUsuario || []}
-          title="Atividades por Módulo"
-          type="bar"
-        />
-        <SimpleChart
-          data={data?.distribuicoes.acessosPorHora || []}
-          title="Acessos por Horário"
-          type="bar"
-        />
-        <SimpleChart
-          data={data?.distribuicoes.errosPorEndpoint || []}
-          title="Erros por Endpoint"
-          type="bar"
+        <BarChart
+          data={
+            (data?.distribuicoes?.statusMateriais?.length
+              ? data.distribuicoes.statusMateriais
+              : buildDonutDataFromGestao(ge)) as AnalyticsDistributionData[]
+          }
+          title="Status dos Materiais (barras)"
+          height={220}
         />
       </Grid>
 
-      {/* Métricas de Sistema */}
-      <Card bg={cardBg} borderColor={borderColor} borderWidth="1px">
+      {/* Gráfico de tendência de materiais críticos (quando houver dados) */}
+      {(data?.tendencias?.materiais?.length ?? 0) > 0 && (
+        <Box mb={6}>
+          <Heading size="md" mb={3} color="brand.darkGreen">
+            Tendência
+          </Heading>
+          <Grid templateColumns={{ base: '1fr', md: '1fr' }} gap={4}>
+            <TrendChart
+              data={data!.tendencias!.materiais}
+              title="Tendência de Materiais Críticos"
+            />
+          </Grid>
+        </Box>
+      )}
+
+      {/* Outras distribuições (barras) quando disponíveis */}
+      {((data?.distribuicoes?.atividadesPorUsuario?.length ?? 0) > 0 ||
+        (data?.distribuicoes?.acessosPorHora?.length ?? 0) > 0) && (
+        <Box mb={6}>
+          <Heading size="md" mb={3} color="brand.darkGreen">
+            Outras distribuições
+          </Heading>
+          <Grid templateColumns="repeat(auto-fit, minmax(300px, 1fr))" gap={4}>
+            {data!.distribuicoes!.atividadesPorUsuario!.length > 0 && (
+              <BarChart
+                data={data!.distribuicoes!.atividadesPorUsuario!}
+                title="Atividades por Módulo"
+              />
+            )}
+            {data!.distribuicoes!.acessosPorHora!.length > 0 && (
+              <BarChart
+                data={data!.distribuicoes!.acessosPorHora!}
+                title="Acessos por Horário"
+              />
+            )}
+          </Grid>
+        </Box>
+      )}
+
+      {/* Métricas do Sistema (secundárias, colapsáveis) */}
+      <Box mb={6}>
+        <Button
+          size="sm"
+          variant="ghost"
+          rightIcon={systemMetricsOpen.isOpen ? <Icon as={MdExpandLess} /> : <Icon as={MdExpandMore} />}
+          onClick={systemMetricsOpen.onToggle}
+          color={textSecondary}
+        >
+          Métricas do sistema (opcional)
+        </Button>
+        <Collapse in={systemMetricsOpen.isOpen}>
+          <Card bg="gray.50" borderColor="gray.200" borderWidth="1px" mt={2}>
+            <CardBody pt={4}>
+              <Grid templateColumns="repeat(auto-fit, minmax(180px, 1fr))" gap={4}>
+                <Box p={3} bg="white" borderRadius="md" borderWidth="1px">
+                  <Text fontSize="sm" color={textSecondary}>Uptime</Text>
+                  <Text fontSize="xl" fontWeight="bold">{data?.systemUptime ?? 99}%</Text>
+                </Box>
+                <Box p={3} bg="white" borderRadius="md" borderWidth="1px">
+                  <Text fontSize="sm" color={textSecondary}>Cache Hit Rate</Text>
+                  <Text fontSize="xl" fontWeight="bold">{data?.cacheHitRate ?? 95}%</Text>
+                </Box>
+                <Box p={3} bg="white" borderRadius="md" borderWidth="1px">
+                  <Text fontSize="sm" color={textSecondary}>Logins Hoje</Text>
+                  <Text fontSize="xl" fontWeight="bold">{data?.dailyLogins ?? 0}</Text>
+                </Box>
+                <Box p={3} bg="white" borderRadius="md" borderWidth="1px">
+                  <Text fontSize="sm" color={textSecondary}>Exportações</Text>
+                  <Text fontSize="xl" fontWeight="bold">{data?.totalExports ?? 0}</Text>
+                </Box>
+              </Grid>
+            </CardBody>
+          </Card>
+        </Collapse>
+      </Box>
+
+      {/* Diagnóstico dos Materiais */}
+      <Card bg="white" borderColor="gray.200" borderWidth="1px">
         <CardHeader>
-          <Text fontWeight="bold">Métricas do Sistema</Text>
+          <Flex align="center" justify="space-between" flexWrap="wrap" gap={2}>
+            <Text fontWeight="bold">Diagnóstico dos Materiais</Text>
+            {hasFilters && (
+              <Badge colorScheme="blue">Diagnóstico específico (filtros aplicados)</Badge>
+            )}
+            {!hasFilters && (
+              <Badge colorScheme="gray">Diagnóstico geral</Badge>
+            )}
+          </Flex>
         </CardHeader>
         <CardBody pt={0}>
-          <Grid templateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap={4}>
-            <Box p={4} borderWidth={1} borderRadius="md">
-              <Text fontSize="sm" color={textSecondary}>Uptime do Sistema</Text>
-              <Text fontSize="2xl" fontWeight="bold">{data?.systemUptime || 99}%</Text>
-              <Text fontSize="sm" color="green.500">↗ Últimas 24h</Text>
-            </Box>
-            <Box p={4} borderWidth={1} borderRadius="md">
-              <Text fontSize="sm" color={textSecondary}>Cache Hit Rate</Text>
-              <Text fontSize="2xl" fontWeight="bold">{data?.cacheHitRate || 95}%</Text>
-              <Text fontSize="sm" color="green.500">↗ Performance otimizada</Text>
-            </Box>
-            <Box p={4} borderWidth={1} borderRadius="md">
-              <Text fontSize="sm" color={textSecondary}>Logins Hoje</Text>
-              <Text fontSize="2xl" fontWeight="bold">{data?.dailyLogins || 24}</Text>
-              <Text fontSize="sm" color="green.500">↗ Usuários únicos</Text>
-            </Box>
-            <Box p={4} borderWidth={1} borderRadius="md">
-              <Text fontSize="sm" color={textSecondary}>Exportações</Text>
-              <Text fontSize="2xl" fontWeight="bold">{data?.totalExports || 12}</Text>
-              <Text fontSize="sm" color="green.500">↗ Hoje</Text>
-            </Box>
-          </Grid>
+          {data?.diagnostico ? (
+            <VStack align="stretch" spacing={4}>
+              <Box>
+                <Text fontSize="sm" fontWeight="semibold" mb={2}>
+                  Resumo
+                </Text>
+                <UnorderedList spacing={1} style={{ paddingLeft: '1.2rem' }}>
+                  {data.diagnostico.resumo.map((item, i) => (
+                    <ListItem key={i} fontSize="sm">
+                      {item}
+                    </ListItem>
+                  ))}
+                </UnorderedList>
+              </Box>
+              {data.diagnostico.alertas.length > 0 && (
+                <Box>
+                  <Text fontSize="sm" fontWeight="semibold" mb={2} color="orange.600">
+                    <Icon as={MdWarning} mr={2} />
+                    Alertas
+                  </Text>
+                  <List spacing={2}>
+                    {data.diagnostico.alertas.map((item, i) => (
+                      <ListItem key={i} fontSize="sm" color="orange.700" display="flex" alignItems="flex-start">
+                        <ListIcon as={MdWarning} color="orange.500" mt={0.5} />
+                        {item}
+                      </ListItem>
+                    ))}
+                  </List>
+                </Box>
+              )}
+            </VStack>
+          ) : (
+            <Text fontSize="sm" color={textSecondary}>
+              Diagnóstico não disponível para o período selecionado.
+            </Text>
+          )}
         </CardBody>
       </Card>
     </Box>

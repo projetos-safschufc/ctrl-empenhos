@@ -12,12 +12,22 @@ import { sendError, ErrorCode } from '../utils/errorResponse';
 
 export const analyticsController = {
   /**
-   * Dashboard analítico principal
+   * Dashboard analítico principal.
+   * Query params opcionais: responsavel, setor, classificacao (para gestaoEstoque e diagnostico filtrados).
    */
   async getDashboardAnalytics(req: Request, res: Response) {
     try {
-      const analytics = await analyticsService.getDashboardAnalytics();
-      
+      const responsavel = req.query.responsavel as string | undefined;
+      const setor = req.query.setor as string | undefined;
+      const classificacao = req.query.classificacao as string | undefined;
+      const filters: { responsavel?: string; setor?: string; classificacao?: string } = {};
+      if (responsavel?.trim()) filters.responsavel = responsavel.trim();
+      if (setor?.trim()) filters.setor = setor.trim();
+      if (classificacao?.trim()) filters.classificacao = classificacao.trim();
+      const hasFilters = Object.keys(filters).length > 0;
+
+      const analytics = await analyticsService.getDashboardAnalytics(hasFilters ? filters : undefined);
+
       res.json({
         success: true,
         data: analytics,

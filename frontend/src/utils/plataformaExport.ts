@@ -62,7 +62,7 @@ export async function exportarExcelListaRecebimentos(
 
 /**
  * Exporta a tabela da tela Controle de Empenhos para Excel formatado.
- * Usa os dados já carregados (página atual), respeitando os filtros aplicados.
+ * Recebe a lista de itens a exportar (todos os registros filtrados ou subconjunto até MAX_EXPORT_ROWS).
  */
 export async function exportarExcelControleEmpenhos(
   itens: ItemControleEmpenho[],

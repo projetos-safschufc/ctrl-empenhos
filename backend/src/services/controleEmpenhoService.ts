@@ -17,11 +17,13 @@ import { validarConsumo, validarEstoque, logColunasControle } from '../utils/col
 import {
   getMesesParaColunasConsumo,
   calcularMediaConsumo6MesesAnteriores,
-  calcularCobertura,
-  definirStatus,
+  calcularCoberturaEstoqueVirtual,
+  calcularStatusComDetalhes,
+  calculateStatus,
   consumoPorMesano,
   filtrarRegistrosParaExibicao,
   type StatusItem,
+  type StatusInput,
 } from './controleEmpenho/calculos';
 
 export type { StatusItem };
@@ -61,6 +63,8 @@ export interface ItemControleEmpenho {
   tipoArmazenamento: string | null;
   capacidadeEstocagem: string | null;
   status: StatusItem;
+  /** Texto explicativo para tooltip (gerado no backend). */
+  statusDetails: string;
   observacao: string | null;
   comRegistro: boolean;
   registros: RegistroConsumoEstoque[];
@@ -238,10 +242,8 @@ export const controleEmpenhoService = {
       const consumoMesAtual = validarConsumo(porMes[meses[6]] ?? 0);
       
       const mediaConsumo6Meses = mediaConsumoMov;
-      const cobertura = calcularCobertura(
-        totais.estoqueAlmoxarifados,
-        mediaConsumo6Meses
-      );
+      const estoqueVirtual = validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos);
+      const cobertura = calcularCoberturaEstoqueVirtual(estoqueVirtual, mediaConsumo6Meses);
 
       // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum).
       // Em produção, apenas registra quando DEBUG=true para não poluir os logs.
@@ -255,8 +257,15 @@ export const controleEmpenhoService = {
       }
 
       const comRegistro = registros.length > 0;
-      const status = definirStatus(cobertura, comRegistro);
-      
+      const consumos6Meses = [
+        consumoMesMinus6,
+        consumoMesMinus5,
+        consumoMesMinus4,
+        consumoMesMinus3,
+        consumoMesMinus2,
+        consumoMesMinus1,
+      ];
+
       // Log de debug (ativo se DEBUG=true)
       logColunasControle(cat.id, masterCode || '', {
         consumoMesMinus6,
@@ -292,7 +301,6 @@ export const controleEmpenhoService = {
         }
       }
 
-      if (filters.status && filters.status !== status) continue;
       if (filters.comRegistro !== undefined && filters.comRegistro !== comRegistro) continue;
 
       const base = {
@@ -323,7 +331,6 @@ export const controleEmpenhoService = {
         classificacaoXYZ: cat.xyz ?? null,
         tipoArmazenamento: lastHist?.tipoArmazenamento ?? null,
         capacidadeEstocagem: lastHist?.capacidadeEstocagem?.toString() ?? null,
-        status,
         observacao: lastHist?.observacao ?? null,
         comRegistro,
         registros,
@@ -332,8 +339,27 @@ export const controleEmpenhoService = {
       if (registros.length === 0) {
         // Regra de negócio: pré-empenho só é exibido quando existe registro válido (saldo > 0 e vigência > hoje).
         // Sem registro válido, a coluna Nº PRÉ-EMPENHO não exibe número (null / "-").
+        const statusInput = {
+          estoqueAlmoxarifados: validarEstoque(totais.estoqueAlmoxarifados),
+          estoqueGeral: validarEstoque(estoqueGeral),
+          saldoEmpenhos: validarEstoque(totais.saldoEmpenhos),
+          estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
+          coberturaEstoque: cobertura,
+          mediaConsumo6Meses,
+          consumoMesAtual,
+          consumos6Meses,
+          mesUltimoConsumo: ultimoConsumoExcl?.mesano ?? null,
+          vigenciaRegistro: null,
+          saldoRegistro: null,
+          comRegistro: false,
+          numeroPreEmpenho: null,
+        };
+        const { status: s, statusDetails: sd } = calcularStatusComDetalhes(statusInput);
+        if (filters.status && filters.status !== s) continue;
         itens.push({
           ...base,
+          status: s,
+          statusDetails: sd,
           numeroPreEmpenho: null,
           rowKey: String(cat.id),
           registroMaster: null,
@@ -347,8 +373,27 @@ export const controleEmpenhoService = {
           const nr = reg.numero_registro ?? '';
           const preEmpenhoKey = `${cat.master}|${nr}`;
           const numeroPreEmpenho = preEmpenhoPorMasterERegistro.get(preEmpenhoKey) ?? null;
+          const statusInput = {
+            estoqueAlmoxarifados: validarEstoque(totais.estoqueAlmoxarifados),
+            estoqueGeral: validarEstoque(estoqueGeral),
+            saldoEmpenhos: validarEstoque(totais.saldoEmpenhos),
+            estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
+            coberturaEstoque: cobertura,
+            mediaConsumo6Meses,
+            consumoMesAtual,
+            consumos6Meses,
+            mesUltimoConsumo: ultimoConsumoExcl?.mesano ?? null,
+            vigenciaRegistro: reg.vigencia ?? null,
+            saldoRegistro: reg.saldo_registro ?? null,
+            comRegistro: true,
+            numeroPreEmpenho,
+          };
+          const { status: s, statusDetails: sd } = calcularStatusComDetalhes(statusInput);
+          if (filters.status && filters.status !== s) continue;
           itens.push({
           ...base,
+          status: s,
+          statusDetails: sd,
           numeroPreEmpenho,
           rowKey: `${cat.id}-${nr}-${idx}`,
           registroMaster: reg.numero_registro ?? null,
@@ -460,35 +505,67 @@ export const controleEmpenhoService = {
         consumosPorMaster = new Map();
       }
 
-      // OTIMIZAÇÃO: Calcular status em lote
+      // OTIMIZAÇÃO: Calcular status em lote (mesma regra exata do getItens: cobertura por estoque virtual + calculateStatus)
+      const registrosExibirPorMaster = new Map<string, RegistroConsumoEstoque[]>();
+      for (const m of masters) {
+        const raw = registrosPorMaster.get(m) ?? [];
+        registrosExibirPorMaster.set(m, filtrarRegistrosParaExibicao(raw));
+      }
+
       for (const cat of items) {
         const masterItem = cat.master;
-        if (!masterItem) continue; // Pular itens sem master code
-        
+        if (!masterItem) continue;
+
         const totais = totaisPorMaster.get(masterItem) ?? { estoqueAlmoxarifados: 0, saldoEmpenhos: 0 };
-        const registros = registrosPorMaster.get(masterItem) ?? [];
+        const registros = registrosExibirPorMaster.get(masterItem) ?? [];
         const consumos = consumosPorMaster.get(masterItem) ?? [];
         const media = calcularMediaConsumo6MesesAnteriores(consumos, mesanoAtual);
-        const cobertura = calcularCobertura(
-          totais.estoqueAlmoxarifados,
-          media
-        );
+        const estoqueVirtual = validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos);
+        const cobertura = calcularCoberturaEstoqueVirtual(estoqueVirtual, media);
+        const consumoMesAtual = consumos.find((c) => c.mesano === mesanoAtual)?.total ?? 0;
 
-        // Validação adicional: garantir que cobertura não seja igual ao estoque (bug comum)
-        if (cobertura === totais.estoqueAlmoxarifados && totais.estoqueAlmoxarifados > 0) {
-          if (process.env.DEBUG === 'true') {
-            console.error(
-              `[BUG DETECTADO] Cobertura igual ao estoque para master ${masterItem}: estoque=${totais.estoqueAlmoxarifados}, media=${media}, cobertura=${cobertura}`
-            );
+        if (registros.length === 0) {
+          totalPendencias++;
+          const statusInput: StatusInput = {
+            estoqueAlmoxarifados: totais.estoqueAlmoxarifados,
+            estoqueGeral: 0,
+            saldoEmpenhos: totais.saldoEmpenhos,
+            estoqueVirtual,
+            coberturaEstoque: cobertura,
+            mediaConsumo6Meses: media,
+            consumoMesAtual,
+            consumos6Meses: [],
+            mesUltimoConsumo: null,
+            vigenciaRegistro: null,
+            saldoRegistro: null,
+            comRegistro: false,
+            numeroPreEmpenho: null,
+          };
+          const status = calculateStatus(statusInput);
+          if (status === 'Atenção') totalAtencao++;
+          if (status === 'Crítico') totalCritico++;
+        } else {
+          for (const reg of registros) {
+            const statusInput: StatusInput = {
+              estoqueAlmoxarifados: totais.estoqueAlmoxarifados,
+              estoqueGeral: 0,
+              saldoEmpenhos: totais.saldoEmpenhos,
+              estoqueVirtual,
+              coberturaEstoque: cobertura,
+              mediaConsumo6Meses: media,
+              consumoMesAtual,
+              consumos6Meses: [],
+              mesUltimoConsumo: null,
+              vigenciaRegistro: reg.vigencia ?? null,
+              saldoRegistro: reg.saldo_registro ?? null,
+              comRegistro: true,
+              numeroPreEmpenho: null,
+            };
+            const status = calculateStatus(statusInput);
+            if (status === 'Atenção') totalAtencao++;
+            if (status === 'Crítico') totalCritico++;
           }
         }
-
-        const comRegistro = registros.length > 0;
-        const status = definirStatus(cobertura, comRegistro);
-        
-        if (!comRegistro) totalPendencias++;
-        if (status === 'Atenção') totalAtencao++;
-        if (status === 'Crítico') totalCritico++;
       }
     }
 

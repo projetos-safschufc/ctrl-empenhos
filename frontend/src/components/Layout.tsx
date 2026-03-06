@@ -14,7 +14,7 @@ const MENU_ITEMS_TOP: { to: string; label: string }[] = [
   { to: '/movimentacao-diaria', label: 'Movimentação Diária' },
   { to: '/empenhos-pendentes', label: 'Empenhos Pendentes' },
   { to: '/provisionamento', label: 'Provisionamento' },
-  { to: '/analytics', label: 'Analytics' },
+  /*{ to: '/analytics', label: 'Analytics' },*/
 ];
 
 const MENU_ITEMS_PLATAFORMA: { to: string; label: string }[] = [

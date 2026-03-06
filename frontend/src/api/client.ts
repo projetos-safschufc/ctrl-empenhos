@@ -133,6 +133,8 @@ export interface ItemControleEmpenho {
   tipoArmazenamento: string | null;
   capacidadeEstocagem: string | null;
   status: StatusItem;
+  /** Texto explicativo para tooltip (gerado no backend). */
+  statusDetails?: string;
   observacao: string | null;
   comRegistro: boolean;
   registros: RegistroConsumoEstoque[];
@@ -186,6 +188,83 @@ export interface DashboardControleResponse {
   totalCritico: number;
 }
 
+// --- Analytics Dashboard ---
+export interface GestaoEstoqueMetrics {
+  totalMateriais: number;
+  totalPendencias: number;
+  totalAtencao: number;
+  totalCritico: number;
+  totalEstoqueAlmoxarifados: number;
+  totalEstoqueVirtual: number;
+  totalSaldoEmpenhos: number;
+  materiaisComRegistroAtivo: number;
+  totalRegistrosAtivos: number;
+}
+
+export interface DiagnosticoMateriais {
+  resumo: string[];
+  alertas: string[];
+}
+
+export interface AnalyticsTrendData {
+  date: string;
+  value: number;
+  label?: string;
+}
+
+export interface AnalyticsDistributionData {
+  label: string;
+  value: number;
+  percentage: number;
+  color?: string;
+}
+
+export interface AnalyticsDashboardData {
+  totalMateriais: number;
+  totalPendencias: number;
+  totalAtencao: number;
+  totalCritico: number;
+  avgResponseTime: number;
+  systemUptime: number;
+  cacheHitRate: number;
+  activeUsers: number;
+  dailyLogins: number;
+  totalExports: number;
+  tendencias: {
+    materiais: AnalyticsTrendData[];
+    usuarios: AnalyticsTrendData[];
+    performance: AnalyticsTrendData[];
+    atividades: AnalyticsTrendData[];
+  };
+  distribuicoes: {
+    statusMateriais: AnalyticsDistributionData[];
+    atividadesPorUsuario: AnalyticsDistributionData[];
+    acessosPorHora: AnalyticsDistributionData[];
+    errosPorEndpoint: AnalyticsDistributionData[];
+  };
+  gestaoEstoque?: GestaoEstoqueMetrics;
+  diagnostico?: DiagnosticoMateriais;
+}
+
+export interface AnalyticsDashboardFilters {
+  responsavel?: string;
+  setor?: string;
+  classificacao?: string;
+}
+
+export const analyticsApi = {
+  getDashboard: (filters?: AnalyticsDashboardFilters) => {
+    const search = new URLSearchParams();
+    if (filters?.responsavel) search.set('responsavel', filters.responsavel);
+    if (filters?.setor) search.set('setor', filters.setor);
+    if (filters?.classificacao) search.set('classificacao', filters.classificacao);
+    const qs = search.toString();
+    return api<{ success: boolean; data: AnalyticsDashboardData; timestamp: string }>(
+      `/analytics/dashboard${qs ? `?${qs}` : ''}`
+    );
+  },
+};
+
 export const controleEmpenhosApi = {
   getItens: (params: {
     codigo?: string;
@@ -196,6 +275,8 @@ export const controleEmpenhosApi = {
     comRegistro?: boolean;
     page?: number;
     pageSize?: number;
+    /** Quando true, backend aceita pageSize maior (até 5000) para exportação. */
+    export?: boolean;
   }) => {
     const search = new URLSearchParams();
     if (params.codigo) search.set('codigo', params.codigo);
@@ -206,6 +287,7 @@ export const controleEmpenhosApi = {
     if (params.comRegistro !== undefined) search.set('comRegistro', String(params.comRegistro));
     if (params.page) search.set('page', String(params.page));
     if (params.pageSize) search.set('pageSize', String(params.pageSize));
+    if (params.export === true) search.set('export', 'true');
     return api<ControleEmpenhosResponse>(`/controle-empenhos?${search.toString()}`);
   },
 

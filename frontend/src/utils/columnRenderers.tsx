@@ -5,7 +5,9 @@
  * Responsável por renderizar dados com formatação consistente, cores, tooltips e validação.
  */
 
-import { Td, Text } from '@chakra-ui/react';
+import { memo } from 'react';
+import { Box, Td, Text, Tooltip } from '@chakra-ui/react';
+import type { StatusItem } from '../api/client';
 
 /**
  * Formata número inteiro com separador de milhares (ponto).
@@ -163,6 +165,62 @@ export function ColunaEstoqueCell({
     </Td>
   );
 }
+
+/**
+ * Célula de Status (CRÍTICO | ATENÇÃO | NORMAL) com tooltip de storytelling.
+ * Backend envia status e statusDetails; célula exibe apenas o label com cor.
+ * Tooltip à direita, max ~340px; em mobile pode abrir com tap/clique.
+ */
+export const StatusCell = memo(function StatusCell({
+  status,
+  statusDetails,
+}: {
+  status: StatusItem | null | undefined;
+  statusDetails?: string | null;
+}): JSX.Element {
+  const s = status ?? '-';
+  const bg =
+    s === 'Crítico' ? 'red.100' : s === 'Atenção' ? 'orange.100' : s === 'Normal' ? 'green.100' : 'gray.100';
+  const color =
+    s === 'Crítico' ? 'red.800' : s === 'Atenção' ? 'orange.800' : s === 'Normal' ? 'green.800' : 'gray.700';
+
+  const content = (
+    <Text
+      as="span"
+      fontSize="xs"
+      fontWeight="bold"
+      px={2}
+      py={1}
+      borderRadius="md"
+      bg={bg}
+      color={color}
+      cursor={statusDetails ? 'help' : 'default'}
+    >
+      {s}
+    </Text>
+  );
+
+  return (
+    <Td style={{ textAlign: 'center' }}>
+      {statusDetails ? (
+        <Tooltip
+          label={
+            <Box as="span" whiteSpace="pre-line" maxW="340px" display="block" textAlign="left" fontSize="sm">
+              {statusDetails}
+            </Box>
+          }
+          placement="right"
+          hasArrow
+          openDelay={300}
+        >
+          {content}
+        </Tooltip>
+      ) : (
+        content
+      )}
+    </Td>
+  );
+});
 
 /**
  * Renderiza célula de pré-empenho.

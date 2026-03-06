@@ -8,9 +8,10 @@ import {
   ControleEmpenhosResponse,
 } from '../api/client';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
+import { MAX_EXPORT_ROWS } from '../utils/plataformaExport';
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 15;
 const DASHBOARD_KEY = CacheKeys.controleDashboard();
 
 function buildItensParams(
@@ -256,6 +257,46 @@ export function useControleEmpenhos() {
   const hasDirty = selectedId != null && editValues[selectedId];
   const consumoHeaders = useMemo(() => getConsumoHeaders(mesesConsumo), [mesesConsumo]);
 
+  /**
+   * Busca todos os itens conforme os filtros atuais para exportação Excel (até MAX_EXPORT_ROWS).
+   * Usa o mesmo contrato da API com export=true para permitir pageSize maior no backend.
+   */
+  const fetchItensForExport = useCallback(async (): Promise<{
+    itens: ItemControleEmpenho[];
+    consumoHeaders: string[];
+  }> => {
+    const exportPageSize = Math.min(total, MAX_EXPORT_ROWS);
+    const params = buildItensParams(
+      filtroCodigo,
+      filtroResponsavel,
+      filtroClassificacao,
+      filtroSetor,
+      filtroStatus,
+      filtroComRegistro,
+      1,
+      exportPageSize
+    );
+    const { data, error } = await controleEmpenhosApi.getItens({
+      ...params,
+      export: true,
+    });
+    if (error) throw new Error(error);
+    const itensList = Array.isArray(data?.itens) ? data.itens : [];
+    const meses = Array.isArray(data?.mesesConsumo) ? data.mesesConsumo : [];
+    return {
+      itens: itensList,
+      consumoHeaders: getConsumoHeaders(meses),
+    };
+  }, [
+    total,
+    filtroCodigo,
+    filtroResponsavel,
+    filtroClassificacao,
+    filtroSetor,
+    filtroStatus,
+    filtroComRegistro,
+  ]);
+
   return {
     dashboard,
     itens,
@@ -294,6 +335,7 @@ export function useControleEmpenhos() {
     totalPages,
     hasDirty,
     consumoHeaders,
+    fetchItensForExport,
     PAGE_SIZE_OPTIONS,
   };
 }

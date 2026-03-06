@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import {
   Box,
   Heading,
@@ -19,6 +20,7 @@ import {
   TableContainer,
   Spinner,
   Flex,
+  useToast,
 } from '@chakra-ui/react';
 import { useControleEmpenhos } from '../hooks/useControleEmpenhos';
 import { formatDate, parseDate } from '../utils/date';
@@ -27,14 +29,35 @@ import {
   renderizarColunasControle,
   DadosColunasControleRender,
   ColunaPreEmpenhoCell,
+  StatusCell,
 } from '../utils/columnRenderers';
-import { exportarExcelControleEmpenhos } from '../utils/plataformaExport';
+import {
+  exportarExcelControleEmpenhos,
+  confirmExportLimit,
+  MAX_EXPORT_ROWS,
+} from '../utils/plataformaExport';
 
 /** Opções fixas para o campo Tipo de Armazenamento (coluna TIPO ARMAZEN.). */
 const TIPO_ARMAZEN_OPCOES = ['Geladeira', 'Estante', 'Pallet'] as const;
 
-/** Larguras mínimas das 4 primeiras colunas fixas (checkbox, Classificação, Resp ctrl, Master/Descritivo). */
-const STICKY_COL_WIDTHS = { check: 40, classificacao: 220, respCtrl: 80, masterDescritivo: 280 };
+/**
+ * Configuração individual das larguras das colunas fixas (em pixels).
+ * Ajuste cada valor para alterar a largura da coluna na tabela.
+ */
+const STICKY_COL_WIDTHS = {
+  /** Coluna ✓ (checkbox) */
+  check: 50,
+  /** Coluna Classificação */
+  classificacao: 280,
+  /** Coluna Resp. ctrl */
+  respCtrl: 80,
+  /** Coluna Master/Descritivo */
+  masterDescritivo: 380,
+  /** Coluna Apres (apresentação) */
+  apres: 52,
+} as const;
+
+/** Posições left para colunas sticky (derivadas de STICKY_COL_WIDTHS). */
 const STICKY_LEFT_1 = 0;
 const STICKY_LEFT_2 = STICKY_COL_WIDTHS.check;
 const STICKY_LEFT_3 = STICKY_LEFT_2 + STICKY_COL_WIDTHS.classificacao;
@@ -99,13 +122,36 @@ export function ControleEmpenhos() {
     totalPages,
     hasDirty,
     consumoHeaders,
+    fetchItensForExport,
     PAGE_SIZE_OPTIONS,
   } = useControleEmpenhos();
+
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = useCallback(async () => {
+    if (total === 0) return;
+    if (total > MAX_EXPORT_ROWS) {
+      const ok = await confirmExportLimit(total, MAX_EXPORT_ROWS);
+      if (!ok) return;
+    }
+    setExporting(true);
+    try {
+      const { itens: toExport, consumoHeaders: headers } = await fetchItensForExport();
+      await exportarExcelControleEmpenhos(toExport, headers);
+      toast({ title: 'Exportação concluída.', status: 'success' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao exportar';
+      toast({ title: msg, status: 'error' });
+    } finally {
+      setExporting(false);
+    }
+  }, [total, fetchItensForExport, toast]);
 
   return (
     <Box>
       <Heading size="lg" color="brand.darkGreen" mb={4}>
-        Controle de Empenhos
+        Gestão de Estoque
       </Heading>
 
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={6}>
@@ -267,13 +313,14 @@ export function ControleEmpenhos() {
         {/* Para listas muito grandes (ex.: pageSize > 100), considere virtualizar o corpo da tabela com @tanstack/react-virtual para melhor performance. */}
         <TableContainer overflowX="auto">
           {loading ? (
-            <Flex justify="center" py={8}>
-              <Spinner color="brand.darkGreen" />
+            <Flex justify="center" align="right" py={20}>
+              <Spinner size="lg" color="brand.darkGreen" />
             </Flex>
           ) : (
             <Table size="sm" whiteSpace="nowrap">
               <colgroup>
-                <col style={{ width: `${STICKY_COL_WIDTHS.check}px`, minWidth: `${STICKY_COL_WIDTHS.check}px` }} />
+                {/*<col style={{ width: `${STICKY_COL_WIDTHS.check}px`, minWidth: `${STICKY_COL_WIDTHS.check}px` }} />*/}
+                <col style={{ width: `${STICKY_COL_WIDTHS.classificacao}px`, minWidth: `${STICKY_COL_WIDTHS.classificacao}px` }} />
               </colgroup>
               <Thead bg="gray.50">
                 <Tr>
@@ -281,7 +328,7 @@ export function ControleEmpenhos() {
                     title="Habilita edição"
                     position="sticky"
                     left={STICKY_LEFT_1}
-                    zIndex={2}
+                    zIndex={1}
                     bg="gray.50"
                     w={`${STICKY_COL_WIDTHS.check}px`}
                     minW={`${STICKY_COL_WIDTHS.check}px`}
@@ -294,7 +341,7 @@ export function ControleEmpenhos() {
                   <Th
                     position="sticky"
                     left={STICKY_LEFT_2}
-                    zIndex={2}
+                    zIndex={5}
                     bg="gray.50"
                     w={`${STICKY_COL_WIDTHS.classificacao}px`}
                     minW={`${STICKY_COL_WIDTHS.classificacao}px`}
@@ -302,9 +349,8 @@ export function ControleEmpenhos() {
                     borderRightWidth="1px"
                     borderColor="gray.200"
                     textAlign="left"
-                  >
-                    Classificação
-                  </Th>
+                  >Classificação</Th>
+                  
                   <Th
                     position="sticky"
                     left={STICKY_LEFT_3}
@@ -327,7 +373,13 @@ export function ControleEmpenhos() {
                   >
                     Master/Descritivo
                   </Th>
-                  <Th>Apres</Th>
+                  <Th
+                    w={`${STICKY_COL_WIDTHS.apres}px`}
+                    minW={`${STICKY_COL_WIDTHS.apres}px`}
+                    maxW={`${STICKY_COL_WIDTHS.apres}px`}
+                  >
+                    Apres
+                  </Th>
                   {consumoHeaders.map((h, i) => {
                     const isLast = i === consumoHeaders.length - 1;
                     const match = isLast && h.match(/^Mês Atual \((.+)\)$/);
@@ -437,8 +489,9 @@ export function ControleEmpenhos() {
                         w={`${STICKY_COL_WIDTHS.classificacao}px`}
                         minW={`${STICKY_COL_WIDTHS.classificacao}px`}
                         maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                        overflow="hidden"
-                        textOverflow="ellipsis"
+                        whiteSpace="normal"
+                        wordBreak="break-word"
+                        lineHeight="tight"
                         position="sticky"
                         left={STICKY_LEFT_2}
                         zIndex={1}
@@ -465,8 +518,9 @@ export function ControleEmpenhos() {
                       </Td>
                       <Td
                         maxW="600px"
-                        overflow="hidden"
-                        textOverflow="ellipsis"
+                        whiteSpace="normal"
+                        wordBreak="break-word"
+                        lineHeight="tight"
                         position="sticky"
                         left={STICKY_LEFT_4}
                         zIndex={1}
@@ -474,10 +528,17 @@ export function ControleEmpenhos() {
                         minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
                         borderRightWidth="1px"
                         borderColor="gray.200"
+                        textAlign="left"
                       >
                         {item.masterDescritivo ?? '-'}
                       </Td>
-                      <Td>{item.apres ?? '-'}</Td>
+                      <Td
+                        w={`${STICKY_COL_WIDTHS.apres}px`}
+                        minW={`${STICKY_COL_WIDTHS.apres}px`}
+                        maxW={`${STICKY_COL_WIDTHS.apres}px`}
+                      >
+                        {item.apres ?? '-'}
+                      </Td>
                       
                       {/* Colunas 6-12: Renderizadas com formatação e cores */}
                       {colunasRenderizadas}
@@ -543,22 +604,8 @@ export function ControleEmpenhos() {
                           item.capacidadeEstocagem ?? '-'
                         )}
                       </Td>
-                      {/* Status: calculado [Normal, Atenção, Crítico], somente leitura */}
-                      <Td style={{ textAlign: 'center' }}>
-                        <Text
-                          as="span"
-                          fontSize="xs"
-                          px={2}
-                          py={1}
-                          borderRadius="md"
-                          bg={
-                            item.status === 'Crítico' ? 'red.100' :
-                            item.status === 'Atenção' ? 'yellow.100' : 'green.100'
-                          }
-                        >
-                          {item.status ?? '-'}
-                        </Text>
-                      </Td>
+                      {/* Status: calculado no backend; célula + tooltip com statusDetails */}
+                      <StatusCell status={item.status} statusDetails={item.statusDetails} />
                       {/* Observação: editável quando checkbox selecionado */}
                       <Td maxW="300px">
                         {isSelected ? (
@@ -590,9 +637,10 @@ export function ControleEmpenhos() {
                 size="sm"
                 variant="outline"
                 colorScheme="green"
-                onClick={() => exportarExcelControleEmpenhos(itens, consumoHeaders)}
-                isDisabled={loading || itens.length === 0}
-                title="Exportar dados da página atual (respeitando filtros) para Excel"
+                onClick={handleExportExcel}
+                isDisabled={loading || total === 0 || exporting}
+                isLoading={exporting}
+                title="Exportar todos os registros (respeitando filtros) para Excel"
               >
                 Exportar Excel
               </Button>
