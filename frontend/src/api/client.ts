@@ -168,6 +168,20 @@ export function formatMesanoMMYYYY(mesano: number): string {
 }
 
 /**
+ * Retorna os 7 meses (6 passados + atual) em formato YYYYMM para colunas de consumo.
+ * Usado na tela de Provisionamento para gerar os mesmos cabeçalhos da Gestão de Estoque.
+ */
+export function getMesesUltimos6(): number[] {
+  const now = new Date();
+  const meses: number[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    meses.push(d.getFullYear() * 100 + (d.getMonth() + 1));
+  }
+  return meses;
+}
+
+/**
  * Cabeçalhos dinâmicos para as colunas de consumo (igual ao Monitor de Validades e Perdas).
  * Retorna o nome do mês/ano para cada posição: [Mês-6, Mês-5, ..., Mês-1, Mês Atual].
  * Ex.: mesesConsumo = [202508,202509,...,202602] -> ["Ago/2025", "Set/2025", ..., "Mês Atual (Fev/2026)"].
@@ -186,6 +200,8 @@ export interface DashboardControleResponse {
   totalPendencias: number;
   totalAtencao: number;
   totalCritico: number;
+  /** Materiais com consumo > 0 e sem registro ativo (coluna registro vazia). */
+  materiaisComConsumoSemRegistro?: number;
 }
 
 // --- Analytics Dashboard ---
@@ -273,6 +289,8 @@ export const controleEmpenhosApi = {
     setor?: string;
     status?: string;
     comRegistro?: boolean;
+    /** Filtro por quantidade exata de registros por material: 0 = sem registro, 1/2/3 = exatamente N registros. */
+    qtdeRegistros?: 0 | 1 | 2 | 3;
     page?: number;
     pageSize?: number;
     /** Quando true, backend aceita pageSize maior (até 5000) para exportação. */
@@ -285,6 +303,7 @@ export const controleEmpenhosApi = {
     if (params.setor) search.set('setor', params.setor);
     if (params.status) search.set('status', params.status);
     if (params.comRegistro !== undefined) search.set('comRegistro', String(params.comRegistro));
+    if (params.qtdeRegistros !== undefined) search.set('qtdeRegistros', String(params.qtdeRegistros));
     if (params.page) search.set('page', String(params.page));
     if (params.pageSize) search.set('pageSize', String(params.pageSize));
     if (params.export === true) search.set('export', 'true');
@@ -293,9 +312,18 @@ export const controleEmpenhosApi = {
 
   getDashboard: () => api<DashboardControleResponse>('/controle-empenhos/dashboard'),
 
-  /** Opções para filtros (classificações e responsáveis para os Selects). */
-  getOpcoesFiltros: () =>
-    api<{ classificacoes: string[]; responsaveis: string[] }>('/controle-empenhos/filtros'),
+  /**
+   * Opções para filtros (classificações e responsáveis para os Selects).
+   * Se setor for informado, retorna apenas opções do respectivo setor.
+   */
+  getOpcoesFiltros: (setor?: string) => {
+    const q = new URLSearchParams();
+    if (setor?.trim()) q.set('setor', setor.trim());
+    const query = q.toString();
+    return api<{ classificacoes: string[]; responsaveis: string[] }>(
+      `/controle-empenhos/filtros${query ? `?${query}` : ''}`
+    );
+  },
 
   salvarHistorico: (body: {
     material_id: number;
@@ -326,6 +354,8 @@ export interface DadosProvisionamentoMaterial {
   estoqueVirtual: number;
   tempoAbastecimento: number | null;
   registros: RegistroConsumoEstoque[];
+  consumosPorMes?: number[];
+  coberturaEstoque?: number | null;
 }
 
 /** Linha da tabela de provisionamento (Registro Ativo = sim). */
@@ -344,6 +374,10 @@ export interface LinhaProvisionamentoRegistroAtivo {
   qtdePedida: number;
   valorTotal: number;
   observacao: string;
+  /** Consumo por mês [mês-6 … mês atual] (7 valores). Opcional para compatibilidade com API antiga. */
+  consumosPorMes?: number[];
+  /** Cobertura de estoque em meses. Opcional para compatibilidade. */
+  coberturaEstoque?: number | null;
 }
 
 export const provisionamentoApi = {
@@ -397,14 +431,17 @@ export const provisionamentoApi = {
     materiais: Array<{
       codigoMaterial: string;
       descricao?: string | null;
-      /** Média de consumo dos últimos 6 meses (exibida no PDF). */
       mediaConsumo6Meses?: number;
+      consumosPorMes?: number[];
+      estoqueAlmoxarifados?: number;
+      coberturaEstoque?: number | null;
       linhas: Array<{
         numero_registro?: string;
         vigencia?: string;
         valor_unitario?: number;
         qtde_pedida: number;
         observacao?: string;
+        saldo_registro?: number | null;
       }>;
     }>;
   }): Promise<{ blob?: Blob; error?: string; filename?: string }> => {

@@ -22,7 +22,9 @@ import { Workbook } from 'exceljs';
 import { movimentacaoDiariaApi, MovimentacaoDiariaItem, MovimentacaoDiariaResponse, MovimentacaoDiariaFiltrosOpcoes } from '../api/client';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 
-const PAGE_SIZE_OPTIONS = [20, 50, 100];
+/** Opções do seletor "Itens por página". O valor inicial de pageSize deve ser um destes. */
+const PAGE_SIZE_OPTIONS = [13, 20, 25, 50];
+const DEFAULT_PAGE_SIZE = 20;
 
 /** Mês atual no formato YYYYMM (ex.: 202602). */
 function getMesanoAtual(): string {
@@ -42,7 +44,14 @@ function mesanoParaLabel(mesano: string): string {
 
 const COLS_EXPORT = ['Data', 'Mês', 'Material', 'Apresentação', 'Quantidade', 'Valor', 'Movimento', 'Almoxarifado', 'Setor controle', 'Destino', 'Grupo', 'Usuário'];
 
-const COL_WIDTHS = [14, 10, 50, 12, 14, 14, 12, 38, 14, 22, 16, 22];
+const COL_WIDTHS = [10, 10, 50, 12, 14, 14, 12, 38, 14, 22, 16, 22];
+
+/** Estilos para colunas com quebra de linha (evita texto em linha única e melhora leitura). */
+const WRAP_CELL_STYLES = {
+  whiteSpace: 'normal' as const,
+  wordBreak: 'break-word' as const,
+  lineHeight: 'tight',
+};
 
 /** Gera e faz download de um XLSX com os itens do período, com formatação (cabeçalho em negrito, larguras de coluna, formato numérico). */
 async function exportarXlsx(itens: MovimentacaoDiariaItem[], periodoLabel: string): Promise<void> {
@@ -99,7 +108,7 @@ export function MovimentacaoDiaria() {
   const { getCached, setCached, invalidateMovimentacao } = useAppCache();
   const [mesano, setMesano] = useState(() => getMesanoAtual());
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [total, setTotal] = useState(0);
   const [itens, setItens] = useState<MovimentacaoDiariaItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,6 +176,12 @@ export function MovimentacaoDiaria() {
   useEffect(() => {
     setPage(1);
   }, [mesano]);
+
+  // Mantém página dentro do range quando total ou pageSize mudam (ex.: após trocar itens por página)
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(total / pageSize));
+    if (page > maxPage) setPage(1);
+  }, [total, pageSize, page]);
 
   useEffect(() => {
     setFiltros((f) => ({ ...f, material: '', almoxarifado: '', movimento: '' }));
@@ -305,21 +320,21 @@ export function MovimentacaoDiaria() {
         </Box>
       ) : (
         <>
-        <TableContainer overflowX="auto" maxW="100%" overflowY="visible" whiteSpace="nowrap">
+        <TableContainer overflowX="auto" maxW="100%" overflowY="visible">
           <Table size="sm" variant="striped" minW="900px">
             <Thead>
               <Tr>
-                <Th>Data</Th>
-                <Th>Mês</Th>
-                <Th>Material</Th>
-                <Th>Apresentação</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="40px" minW="30px">Data</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="40px" minW="30px">Mês</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="580px" minW="120px">Material</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="40px" minW="30px">Apresentação</Th>
                 <Th isNumeric>Quantidade</Th>
                 {/*<Th isNumeric>Valor</Th>*/}
-                <Th>Movimento</Th>
-                <Th>Almoxarifado</Th>
-                <Th>Setor controle</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="80px" minW="50px">Movimento</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="150px" minW="80px">Almoxarifado</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="80px" minW="50px">Setor controle</Th>
                 <Th>Destino</Th>
-                <Th>Grupo</Th>
+                <Th {...WRAP_CELL_STYLES} maxW="160px" minW="80px">Grupo</Th>
                 <Th>Usuário</Th>
               </Tr>
             </Thead>
@@ -336,22 +351,22 @@ export function MovimentacaoDiaria() {
 
 
                   <Td>{row.mesano ?? '—'}</Td>
-                  <Td>{row.mat_cod_antigo ?? '—'}</Td>
+                  <Td {...WRAP_CELL_STYLES} maxW="280px" minW="120px">{row.mat_cod_antigo ?? '—'}</Td>
                   <Td>{row.umd_codigo ?? '—'}</Td>
                   <Td isNumeric>{(Number(row.quantidade) || 0).toLocaleString('pt-BR')}</Td>
                   {/*<Td isNumeric>{row.valor != null ? Number(row.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</Td>*/}
                   <Td>{row.movimento_cd ?? '—'}</Td>
-                  <Td>{row.alm_nome ?? '—'}</Td>
+                  <Td {...WRAP_CELL_STYLES} maxW="220px" minW="100px">{row.alm_nome ?? '—'}</Td>
                   <Td>{row.setor_controle ?? '—'}</Td>
                   <Td>{row.centro_atividade ?? '—'}</Td>
-                  <Td>{row.grupo ?? '—'}</Td>
+                  <Td {...WRAP_CELL_STYLES} maxW="160px" minW="80px">{row.grupo ?? '—'}</Td>
                   <Td>{row.ser_nome ?? '—'}</Td>
                 </Tr>
               ))}
             </Tbody>
           </Table>
         </TableContainer>
-        <Flex mt={3} justify="space-between" align="center" flexWrap="wrap" gap={2}>
+        <Flex mt={4} justify="space-between" align="center" flexWrap="wrap" gap={2}>
           <Text fontSize="sm" color="gray.600">
             {total} itens – página {page} de {totalPaginas}
           </Text>
@@ -360,11 +375,16 @@ export function MovimentacaoDiaria() {
             <Select
               size="sm"
               maxW="70px"
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+              value={String(pageSize)}
+              onChange={(e) => {
+                const newSize = Number(e.target.value);
+                if (!Number.isInteger(newSize) || newSize < 1) return;
+                setPageSize(newSize);
+                setPage(1);
+              }}
             >
               {PAGE_SIZE_OPTIONS.map((n) => (
-                <option key={n} value={n}>{n}</option>
+                <option key={n} value={String(n)}>{n}</option>
               ))}
             </Select>
             <Button size="sm" isDisabled={!temAnterior} onClick={() => setPage((p) => Math.max(1, p - 1))}>

@@ -86,10 +86,17 @@ export const catalogoRepository = {
     });
   },
 
-  /** Retorna valores distintos de servAquisicao (classificação) para uso em filtros (ex.: Select). */
-  async findDistinctClassificacoes(): Promise<string[]> {
+  /**
+   * Retorna valores distintos de servAquisicao (classificação) para uso em filtros.
+   * Se setor for informado, retorna apenas classificações do respectivo setor_controle.
+   */
+  async findDistinctClassificacoes(setor?: string | null): Promise<string[]> {
+    const where: Record<string, unknown> = { servAquisicao: { not: null } };
+    if (setor?.trim()) {
+      where.setor_controle = setor.trim().toUpperCase();
+    }
     const rows = await prisma.safsCatalogo.findMany({
-      where: { servAquisicao: { not: null } },
+      where,
       select: { servAquisicao: true },
       distinct: ['servAquisicao'],
       orderBy: { servAquisicao: 'asc' },
@@ -97,15 +104,40 @@ export const catalogoRepository = {
     return rows.map((r) => r.servAquisicao as string).filter(Boolean);
   },
 
-  /** Retorna valores distintos de respControle (responsável) para uso em filtros (ex.: Select). */
-  async findDistinctResponsaveis(): Promise<string[]> {
+  /**
+   * Retorna valores distintos de respControle (responsável) para uso em filtros.
+   * Se setor for informado, retorna apenas responsáveis do respectivo setor_controle.
+   */
+  async findDistinctResponsaveis(setor?: string | null): Promise<string[]> {
+    const where: Record<string, unknown> = { respControle: { not: null } };
+    if (setor?.trim()) {
+      where.setor_controle = setor.trim().toUpperCase();
+    }
     const rows = await prisma.safsCatalogo.findMany({
-      where: { respControle: { not: null } },
+      where,
       select: { respControle: true },
       distinct: ['respControle'],
       orderBy: { respControle: 'asc' },
     });
     return rows.map((r) => r.respControle as string).filter(Boolean);
+  },
+
+  /**
+   * Retorna itens do catálogo cujo master está na lista, na mesma ordem do array masters.
+   * Usado para paginação quando filtro por quantidade de registros está ativo.
+   */
+  async findManyByMasters(masters: string[]): Promise<Awaited<ReturnType<typeof prisma.safsCatalogo.findMany>>[number][]> {
+    if (masters.length === 0) return [];
+    const uniq = [...new Set(masters.map((m) => m.trim()).filter(Boolean))];
+    const items = await prisma.safsCatalogo.findMany({
+      where: { master: { in: uniq } },
+      orderBy: { master: 'asc' },
+    });
+    const byMaster = new Map<string, (typeof items)[number]>();
+    for (const it of items) {
+      if (it.master != null) byMaster.set(it.master, it);
+    }
+    return masters.map((m) => byMaster.get(m)).filter((x): x is NonNullable<typeof x> => x != null);
   },
 
   /** Retorna mapa master -> descricao para uma lista de códigos (para batch). */

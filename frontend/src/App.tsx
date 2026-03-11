@@ -17,7 +17,6 @@ import { ListaEmpenhos } from './pages/plataforma/ListaEmpenhos';
 import { ListaRecebimentos } from './pages/plataforma/ListaRecebimentos';
 import { AdicionarObservacoes } from './pages/plataforma/AdicionarObservacoes';
 import { EditarRecebimento } from './pages/plataforma/EditarRecebimento';
-import { Tutorial } from './pages/Tutorial';
 import theme from './theme';
 
 export default function App() {
@@ -39,7 +38,6 @@ export default function App() {
               }
             >
               <Route index element={<Dashboard />} />
-              <Route path="tutorial" element={<Tutorial />} />
               <Route path="controle-empenhos" element={<ControleEmpenhos />} />
               <Route path="movimentacao-diaria" element={<MovimentacaoDiaria />} />
               <Route path="empenhos-pendentes" element={<EmpenhosPendentes />} />

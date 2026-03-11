@@ -95,7 +95,11 @@ export async function getConsumosPorMastersEMeses(
     }
     for (const m of masters) {
       const variantes = variantesCodigoMaterial(m);
-      const existing = variantes.map((v) => map.get(v)).find(Boolean);
+      let existing = variantes.map((v) => map.get(v)).find(Boolean);
+      if (!existing) {
+        const masterPart = m.includes('-') ? m.split('-')[0].trim() : m;
+        existing = map.get(masterPart) ?? variantesCodigoMaterial(masterPart).map((v) => map.get(v)).find(Boolean);
+      }
       if (existing && !map.has(m)) map.set(m, existing);
     }
     return map;

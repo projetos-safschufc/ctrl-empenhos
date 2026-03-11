@@ -98,12 +98,16 @@ export const provisionamentoController = {
         codigoMaterial?: string;
         descricao?: string | null;
         mediaConsumo6Meses?: number;
+        consumosPorMes?: number[];
+        estoqueAlmoxarifados?: number;
+        coberturaEstoque?: number | null;
         linhas?: Array<{
           numero_registro?: string;
           vigencia?: string;
           valor_unitario?: number;
           qtde_pedida: number;
           observacao?: string;
+          saldo_registro?: number | null;
         }>;
       }>;
     };
@@ -119,6 +123,9 @@ export const provisionamentoController = {
         codigoMaterial: m.codigoMaterial!.trim(),
         descricao: m.descricao ?? null,
         mediaConsumo6Meses: m.mediaConsumo6Meses,
+        consumosPorMes: Array.isArray(m.consumosPorMes) ? m.consumosPorMes.slice(0, 7) : undefined,
+        estoqueAlmoxarifados: m.estoqueAlmoxarifados,
+        coberturaEstoque: m.coberturaEstoque ?? undefined,
         linhas: (m.linhas || [])
           .filter((l) => Number(l.qtde_pedida) > 0)
           .map((l) => ({
@@ -127,6 +134,7 @@ export const provisionamentoController = {
             valor_unitario: l.valor_unitario,
             qtde_pedida: Number(l.qtde_pedida) || 0,
             observacao: l.observacao,
+            saldo_registro: l.saldo_registro ?? undefined,
             valor_total: (Number(l.valor_unitario) || 0) * (Number(l.qtde_pedida) || 0),
           })),
       }))

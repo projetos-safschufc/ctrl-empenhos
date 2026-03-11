@@ -42,28 +42,40 @@ const TIPO_ARMAZEN_OPCOES = ['Geladeira', 'Estante', 'Pallet'] as const;
 
 /**
  * Configuração individual das larguras das colunas fixas (em pixels).
- * Ajuste cada valor para alterar a largura da coluna na tabela.
  */
 const STICKY_COL_WIDTHS = {
   /** Coluna ✓ (checkbox) */
-  check: 50,
+  check: 60,
+  /** Coluna Master/Descritivo */
+  masterDescritivo: 550,
+  /** Coluna Resp. ctrl */
+  responsavel: 140,
+  /** Coluna Apres (apresentação) */
+  apres: 70,
   /** Coluna Classificação */
   classificacao: 280,
-  /** Coluna Resp. ctrl */
-  respCtrl: 80,
-  /** Coluna Master/Descritivo */
-  masterDescritivo: 380,
-  /** Coluna Apres (apresentação) */
-  apres: 52,
 } as const;
 
-/** Posições left para colunas sticky (derivadas de STICKY_COL_WIDTHS). */
-const STICKY_LEFT_1 = 0;
-const STICKY_LEFT_2 = STICKY_COL_WIDTHS.check;
-const STICKY_LEFT_3 = STICKY_LEFT_2 + STICKY_COL_WIDTHS.classificacao;
-const STICKY_LEFT_4 = STICKY_LEFT_3 + STICKY_COL_WIDTHS.respCtrl;
+/** Posições left (px) para colunas sticky (RESP. CTRL após Classificação; checkbox no final) */
+const STICKY_LEFT = {
+  masterDescritivo: 0,
+  apres: STICKY_COL_WIDTHS.masterDescritivo,
+  classificacao: STICKY_COL_WIDTHS.masterDescritivo + STICKY_COL_WIDTHS.apres,
+  responsavel: STICKY_COL_WIDTHS.masterDescritivo + STICKY_COL_WIDTHS.apres + STICKY_COL_WIDTHS.classificacao,
+} as const;
 
-/** Renderiza cabeçalho com quebra de linha para colunas que devem ficar mais estreitas. */
+/** Cor de fundo do cabeçalho da tabela Gestão de Estoque */
+const TABLE_HEADER_BG = '#8BC547';
+
+/** Z-index hierarchy for sticky elements */
+const Z_INDEX = {
+  header: 20,
+  headerSticky: 21,
+  bodySticky: 2,
+  bodySelected: 1,
+} as const;
+
+/** Renderiza cabeçalho com quebra de linha */
 function ThQuebraLinha({
   linha1,
   linha2,
@@ -109,9 +121,11 @@ export function ControleEmpenhos() {
     setFiltroStatus,
     filtroComRegistro,
     setFiltroComRegistro,
+    filtroQtdeRegistros,
+    setFiltroQtdeRegistros,
     opcoesClassificacao,
     opcoesResponsavel,
-    selectedId,
+    selectedRowKey,
     editValues,
     saving,
     aplicarFiltros,
@@ -148,13 +162,76 @@ export function ControleEmpenhos() {
     }
   }, [total, fetchItensForExport, toast]);
 
+  const getStickyStyles = (column: keyof typeof STICKY_LEFT, isHeader = false) => ({
+    position: 'sticky' as const,
+    left: STICKY_LEFT[column],
+    zIndex: isHeader ? Z_INDEX.headerSticky : Z_INDEX.bodySticky,
+    bg: isHeader ? TABLE_HEADER_BG : undefined,
+    color: isHeader ? 'white' : undefined,
+    borderRightWidth: '1px',
+    borderColor: isHeader ? 'whiteAlpha.400' : 'gray.200',
+  });
+
+  /** Estilos para coluna fixa à direita (checkbox no final da tabela) */
+  const getStickyRightStyles = (isHeader = false) => ({
+    position: 'sticky' as const,
+    right: 0,
+    zIndex: isHeader ? Z_INDEX.headerSticky : Z_INDEX.bodySticky,
+    bg: isHeader ? TABLE_HEADER_BG : undefined,
+    color: isHeader ? 'white' : undefined,
+    borderLeftWidth: '1px',
+    borderColor: isHeader ? 'whiteAlpha.400' : 'gray.200',
+  });
+
+  const getCellBg = (isSelected: boolean, isHeader = false) => {
+    if (isHeader) return 'gray.50';
+    return isSelected ? 'green.50' : 'white';
+  };
+
+  const getResponsavel = (item: Record<string, unknown>, edits: Record<string, unknown>): string => {
+    if (edits.responsavel !== undefined) return String(edits.responsavel);
+    const responsavel =
+      item.responsavel ??
+      item.respControle ??
+      item.resp_controle ??
+      item.responsavelControle ??
+      item.nomeResponsavel ??
+      item.RESPONSAVEL ??
+      '';
+    return responsavel ? String(responsavel) : '-';
+  };
+
+  // Função auxiliar para formatar Master/Descritivo
+  const formatMasterDescritivo = (item: any): string => {
+    if (item.masterDescritivo) {
+      return item.masterDescritivo;
+    }
+    const codigo = item.codigo ?? item.CODIGO ?? '';
+    const descricao = item.descricao ?? item.DESCRICAO ?? '';
+    if (codigo || descricao) {
+      return `${codigo} - ${descricao}`.trim();
+    }
+    return '-';
+  };
+
+  // Função para obter a apresentação
+  const getApresentacao = (item: any): string => {
+    return item.apres ?? item.apresentacao ?? item.APRESENTACAO ?? '-';
+  };
+
+  // Função para obter a classificação
+  const getClassificacao = (item: any): string => {
+    return item.classificacao ?? item.CLASSIFICACAO ?? '-';
+  };
+
   return (
     <Box>
       <Heading size="lg" color="brand.darkGreen" mb={4}>
         Gestão de Estoque
       </Heading>
 
-      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={6}>
+      <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4} mb={6}>
+        {/* Cards de dashboard - mantido igual */}
         {loadingDashboard ? (
           <>
             {[1, 2, 3, 4].map((i) => (
@@ -170,34 +247,47 @@ export function ControleEmpenhos() {
           </>
         ) : dashboard ? (
           <>
-            <Card bg="white" borderLeft="4px" borderColor="brand.green">
+            <Card bg="white" borderLeft="4px" borderColor="brand.green" borderRadius="md" boxShadow="sm">
               <CardBody>
                 <Text fontSize="sm" color="gray.600">Materiais</Text>
                 <Text fontSize="2xl" fontWeight="bold" color="brand.darkGreen">{dashboard.totalMateriais}</Text>
               </CardBody>
             </Card>
-            <Card bg="white" borderLeft="4px" borderColor="orange.400">
+            <Card bg="white" borderLeft="4px" borderColor="orange.400" borderRadius="md" boxShadow="sm">
               <CardBody>
                 <Text fontSize="sm" color="gray.600">Pendências</Text>
                 <Text fontSize="2xl" fontWeight="bold">{dashboard.totalPendencias}</Text>
               </CardBody>
             </Card>
-            <Card bg="white" borderLeft="4px" borderColor="yellow.400">
+            <Card bg="white" borderLeft="4px" borderColor="yellow.400" borderRadius="md" boxShadow="sm">
               <CardBody>
                 <Text fontSize="sm" color="gray.600">Atenção</Text>
                 <Text fontSize="2xl" fontWeight="bold">{dashboard.totalAtencao}</Text>
               </CardBody>
             </Card>
-            <Card bg="white" borderLeft="4px" borderColor="red.500">
+            <Card bg="white" borderLeft="4px" borderColor="red.500" borderRadius="md" boxShadow="sm">
               <CardBody>
                 <Text fontSize="sm" color="gray.600">Crítico</Text>
                 <Text fontSize="2xl" fontWeight="bold">{dashboard.totalCritico}</Text>
               </CardBody>
             </Card>
+            <Card bg="white" borderLeft="4px" borderColor="orange.300" borderRadius="md" boxShadow="sm">
+              <CardBody>
+                <Text fontSize="sm" color="gray.600">Materiais com Consumo</Text>
+                <Text fontSize="2xl" fontWeight="bold" color="orange.600">
+                  {typeof dashboard.materiaisComConsumoSemRegistro === 'number'
+                    ? dashboard.materiaisComConsumoSemRegistro
+                    : 0}
+                </Text>
+                <Text fontSize="xs" color="gray.500" mt={1}>
+                  Materiais com consumo &gt; 0 e sem registro ativo
+                </Text>
+              </CardBody>
+            </Card>
           </>
         ) : (
           <>
-            {['Materiais', 'Pendências', 'Atenção', 'Crítico'].map((label) => (
+            {['Materiais', 'Pendências', 'Atenção', 'Crítico', 'Materiais com Consumo'].map((label) => (
               <Card key={label} bg="white" borderLeft="4px" borderColor="gray.200">
                 <CardBody>
                   <Text fontSize="sm" color="gray.600">{label}</Text>
@@ -280,6 +370,19 @@ export function ControleEmpenhos() {
               <option value="true">Sim</option>
               <option value="false">Não</option>
             </Select>
+            <Select
+              size="sm"
+              w="160px"
+              placeholder="Qtde registros"
+              value={filtroQtdeRegistros}
+              onChange={(e) => setFiltroQtdeRegistros(e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="0">Itens s/ registro</option>
+              <option value="1">Itens c/ 1 registro</option>
+              <option value="2">Itens c/ 2 registros</option>
+              <option value="3">Itens c/ 3 registros</option>
+            </Select>
             <Button size="sm" colorScheme="green" onClick={aplicarFiltros}>
               Aplicar
             </Button>
@@ -292,6 +395,21 @@ export function ControleEmpenhos() {
             >
               Atualizar
             </Button>
+            {(() => {
+              const msg =
+                filtroQtdeRegistros === ''
+                  ? `Total: ${total} materiais`
+                  : filtroQtdeRegistros === '0'
+                    ? `Há ${total} materiais sem registro ativo.`
+                    : filtroQtdeRegistros === '1'
+                      ? `Há ${total} materiais com 1 registro ativo.`
+                      : `Há ${total} materiais com ${filtroQtdeRegistros} registros ativos.`;
+              return (
+                <Text fontSize="sm" color="gray.600" whiteSpace="nowrap">
+                  {msg}
+                </Text>
+              );
+            })()}
           </HStack>
         </CardBody>
       </Card>
@@ -310,82 +428,68 @@ export function ControleEmpenhos() {
       )}
 
       <Card bg="white">
-        {/* Para listas muito grandes (ex.: pageSize > 100), considere virtualizar o corpo da tabela com @tanstack/react-virtual para melhor performance. */}
-        <TableContainer overflowX="auto">
+        <TableContainer overflowX="auto" overflowY="auto" maxHeight="calc(100vh - 300px)">
           {loading ? (
-            <Flex justify="center" align="right" py={20}>
+            <Flex justify="center" align="center" py={20}>
               <Spinner size="lg" color="brand.darkGreen" />
             </Flex>
           ) : (
-            <Table size="sm" whiteSpace="nowrap">
+            <Table size="sm" whiteSpace="nowrap" variant="simple">
               <colgroup>
-                {/*<col style={{ width: `${STICKY_COL_WIDTHS.check}px`, minWidth: `${STICKY_COL_WIDTHS.check}px` }} />*/}
+                <col style={{ width: `${STICKY_COL_WIDTHS.masterDescritivo}px`, minWidth: `${STICKY_COL_WIDTHS.masterDescritivo}px` }} />
+                <col style={{ width: `${STICKY_COL_WIDTHS.apres}px`, minWidth: `${STICKY_COL_WIDTHS.apres}px` }} />
                 <col style={{ width: `${STICKY_COL_WIDTHS.classificacao}px`, minWidth: `${STICKY_COL_WIDTHS.classificacao}px` }} />
+                <col style={{ width: `${STICKY_COL_WIDTHS.responsavel}px`, minWidth: `${STICKY_COL_WIDTHS.responsavel}px` }} />
               </colgroup>
-              <Thead bg="gray.50">
-                <Tr>
+              
+              <Thead sx={{ '& th': { bg: TABLE_HEADER_BG, color: 'white' } }}>
+                <Tr position="sticky" top={0} zIndex={Z_INDEX.header} bg={TABLE_HEADER_BG} color="white">
+                  {/* Colunas fixas à esquerda no cabeçalho */}
                   <Th
-                    title="Habilita edição"
-                    position="sticky"
-                    left={STICKY_LEFT_1}
-                    zIndex={1}
-                    bg="gray.50"
-                    w={`${STICKY_COL_WIDTHS.check}px`}
-                    minW={`${STICKY_COL_WIDTHS.check}px`}
-                    maxW={`${STICKY_COL_WIDTHS.check}px`}
-                    borderRightWidth="1px"
-                    borderColor="gray.200"
-                  >
-                    ✓
-                  </Th>
-                  <Th
-                    position="sticky"
-                    left={STICKY_LEFT_2}
-                    zIndex={5}
-                    bg="gray.50"
-                    w={`${STICKY_COL_WIDTHS.classificacao}px`}
-                    minW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                    maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                    borderRightWidth="1px"
-                    borderColor="gray.200"
-                    textAlign="left"
-                  >Classificação</Th>
-                  
-                  <Th
-                    position="sticky"
-                    left={STICKY_LEFT_3}
-                    zIndex={2}
-                    bg="gray.50"
-                    minW={`${STICKY_COL_WIDTHS.respCtrl}px`}
-                    borderRightWidth="1px"
-                    borderColor="gray.200"
-                  >
-                    Resp ctrl
-                  </Th>
-                  <Th
-                    position="sticky"
-                    left={STICKY_LEFT_4}
-                    zIndex={2}
-                    bg="gray.50"
+                    {...getStickyStyles('masterDescritivo', true)}
+                    w={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
                     minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
-                    borderRightWidth="1px"
-                    borderColor="gray.200"
+                    maxW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
+                    textAlign="left"
                   >
                     Master/Descritivo
                   </Th>
                   <Th
+                    {...getStickyStyles('apres', true)}
                     w={`${STICKY_COL_WIDTHS.apres}px`}
                     minW={`${STICKY_COL_WIDTHS.apres}px`}
                     maxW={`${STICKY_COL_WIDTHS.apres}px`}
+                    textAlign="center"
                   >
                     Apres
                   </Th>
+                  <Th
+                    {...getStickyStyles('classificacao', true)}
+                    w={`${STICKY_COL_WIDTHS.classificacao}px`}
+                    minW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                    maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                    textAlign="left"
+                  >
+                    Classificação
+                  </Th>
+                  <Th
+                    {...getStickyStyles('responsavel', true)}
+                    w={`${STICKY_COL_WIDTHS.responsavel}px`}
+                    minW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                    maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                    textAlign="left"
+                    title="Responsável pelo controle"
+                  >
+                    RESP. CTRL
+                  </Th>
+
+                  {/* Colunas de consumo mensal */}
                   {consumoHeaders.map((h, i) => {
                     const isLast = i === consumoHeaders.length - 1;
                     const match = isLast && h.match(/^Mês Atual \((.+)\)$/);
                     if (match) {
                       return (
-                        <Th key={i} whiteSpace="normal" fontSize="xs">
+                        <Th key={i} whiteSpace="normal" fontSize="xs" textAlign="right">
                           <Box as="span" whiteSpace="normal" lineHeight="tight" fontSize="xs">
                             Mês Atual
                             <br />
@@ -395,12 +499,14 @@ export function ControleEmpenhos() {
                       );
                     }
                     return (
-                      <Th key={i} isNumeric fontSize="xs">
+                      <Th key={i} isNumeric fontSize="xs" textAlign="right">
                         {h}
                       </Th>
                     );
                   })}
-                  <ThQuebraLinha linha1="Média 6" linha2="meses" isNumeric />
+                  
+                  {/* Demais colunas do cabeçalho */}
+                  <ThQuebraLinha linha1="Média" linha2="6 meses" isNumeric />
                   <ThQuebraLinha linha1="Mês últ" linha2="consumo" />
                   <ThQuebraLinha linha1="Qtde últ" linha2="consumo" isNumeric />
                   <ThQuebraLinha linha1="Estoque" linha2="almox." isNumeric />
@@ -419,20 +525,32 @@ export function ControleEmpenhos() {
                   <Th>Cap. estocagem</Th>
                   <Th>Status</Th>
                   <Th>Observação</Th>
+                  {/* Coluna checkbox fixa à direita */}
+                  <Th
+                    {...getStickyRightStyles(true)}
+                    w={`${STICKY_COL_WIDTHS.check}px`}
+                    minW={`${STICKY_COL_WIDTHS.check}px`}
+                    maxW={`${STICKY_COL_WIDTHS.check}px`}
+                    title="Habilita edição"
+                  >
+                    ✓
+                  </Th>
                 </Tr>
               </Thead>
+              
               <Tbody>
                 {loading && (
                   <Tr>
-                    <Td colSpan={31} textAlign="center" py={8}>
+                    <Td colSpan={32} textAlign="center" py={8}>
                       <Spinner size="lg" />
                       <Text mt={2}>Carregando dados...</Text>
                     </Td>
                   </Tr>
                 )}
+                
                 {!loading && itens.length === 0 && (
                   <Tr>
-                    <Td colSpan={31} textAlign="center" py={8}>
+                    <Td colSpan={32} textAlign="center" py={8}>
                       <Text color="gray.500">Nenhum item encontrado</Text>
                       <Text fontSize="sm" color="gray.400" mt={1}>
                         Total: {total} | Página: {page}
@@ -440,11 +558,16 @@ export function ControleEmpenhos() {
                     </Td>
                   </Tr>
                 )}
+                
                 {!loading && itens.map((item) => {
-                  const isSelected = selectedId === item.id;
-                  const edits = editValues[item.id] ?? {};
+                  const isSelected = selectedRowKey === item.rowKey;
+                  const edits = editValues[item.rowKey] ?? {};
                   
-                  // Preparar dados para renderizadores de colunas 6-12
+                  const masterDescritivoDisplay = formatMasterDescritivo(item);
+                  const responsavelDisplay = getResponsavel(item as unknown as Record<string, unknown>, edits);
+                  const apresentacaoDisplay = getApresentacao(item);
+                  const classificacaoDisplay = getClassificacao(item);
+                  
                   const dadosColunasRender: DadosColunasControleRender = {
                     consumoMesMinus6: Number(item.consumoMesMinus6) || 0,
                     consumoMesMinus5: Number(item.consumoMesMinus5) || 0,
@@ -468,90 +591,88 @@ export function ControleEmpenhos() {
                   const colunasRenderizadas = renderizarColunasControle(dadosColunasRender);
                   
                   return (
-                    <Tr key={item.rowKey ?? item.id} bg={isSelected ? 'green.50' : undefined}>
+                    <Tr key={item.rowKey ?? item.id}>
+                      {/* Coluna Master/Descritivo */}
                       <Td
-                        position="sticky"
-                        left={STICKY_LEFT_1}
-                        zIndex={1}
-                        bg={isSelected ? 'green.50' : 'white'}
-                        w={`${STICKY_COL_WIDTHS.check}px`}
-                        minW={`${STICKY_COL_WIDTHS.check}px`}
-                        maxW={`${STICKY_COL_WIDTHS.check}px`}
-                        borderRightWidth="1px"
-                        borderColor="gray.200"
+                        {...getStickyStyles('masterDescritivo')}
+                        bg={getCellBg(isSelected)}
+                        minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
+                        whiteSpace="normal"
+                        wordBreak="break-word"
+                        lineHeight="tight"
+                        textAlign="left"
                       >
-                        <Checkbox
-                          isChecked={isSelected}
-                          onChange={() => toggleSelect(item)}
-                        />
+                        {masterDescritivoDisplay}
                       </Td>
+                      
+                      {/* Coluna Apresentação */}
                       <Td
+                        {...getStickyStyles('apres')}
+                        bg={getCellBg(isSelected)}
+                        w={`${STICKY_COL_WIDTHS.apres}px`}
+                        minW={`${STICKY_COL_WIDTHS.apres}px`}
+                        maxW={`${STICKY_COL_WIDTHS.apres}px`}
+                        textAlign="center"
+                      >
+                        {apresentacaoDisplay}
+                      </Td>
+                      
+                      {/* Coluna Classificação */}
+                      <Td
+                        {...getStickyStyles('classificacao')}
+                        bg={getCellBg(isSelected)}
                         w={`${STICKY_COL_WIDTHS.classificacao}px`}
                         minW={`${STICKY_COL_WIDTHS.classificacao}px`}
                         maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
                         whiteSpace="normal"
                         wordBreak="break-word"
                         lineHeight="tight"
-                        position="sticky"
-                        left={STICKY_LEFT_2}
-                        zIndex={1}
-                        bg={isSelected ? 'green.50' : 'white'}
-                        borderRightWidth="1px"
-                        borderColor="gray.200"
                         textAlign="left"
                       >
-                        {item.classificacao ?? '-'}
+                        {classificacaoDisplay}
                       </Td>
+                      
+                      {/* Coluna RESP. CTRL (logo após Classificação) */}
                       <Td
-                        maxW="80px"
-                        overflow="hidden"
-                        textOverflow="ellipsis"
-                        position="sticky"
-                        left={STICKY_LEFT_3}
-                        zIndex={1}
-                        bg={isSelected ? 'green.50' : 'white'}
-                        minW={`${STICKY_COL_WIDTHS.respCtrl}px`}
-                        borderRightWidth="1px"
-                        borderColor="gray.200"
-                      >
-                        {item.respControle ?? '-'}
-                      </Td>
-                      <Td
-                        maxW="600px"
+                        {...getStickyStyles('responsavel')}
+                        bg={getCellBg(isSelected)}
+                        w={`${STICKY_COL_WIDTHS.responsavel}px`}
+                        minW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                        maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
                         whiteSpace="normal"
                         wordBreak="break-word"
                         lineHeight="tight"
-                        position="sticky"
-                        left={STICKY_LEFT_4}
-                        zIndex={1}
-                        bg={isSelected ? 'green.50' : 'white'}
-                        minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
-                        borderRightWidth="1px"
-                        borderColor="gray.200"
                         textAlign="left"
+                        title={responsavelDisplay !== '-' ? responsavelDisplay : undefined}
                       >
-                        {item.masterDescritivo ?? '-'}
-                      </Td>
-                      <Td
-                        w={`${STICKY_COL_WIDTHS.apres}px`}
-                        minW={`${STICKY_COL_WIDTHS.apres}px`}
-                        maxW={`${STICKY_COL_WIDTHS.apres}px`}
-                      >
-                        {item.apres ?? '-'}
+                        {isSelected ? (
+                          <Input
+                            size="xs"
+                            value={edits.responsavel ?? responsavelDisplay}
+                            onChange={(e) => updateEdit(item.rowKey, 'responsavel', e.target.value)}
+                            placeholder="Responsável"
+                          />
+                        ) : (
+                          responsavelDisplay
+                        )}
                       </Td>
                       
-                      {/* Colunas 6-12: Renderizadas com formatação e cores */}
+                      {/* Colunas de consumo */}
                       {colunasRenderizadas}
                       
                       {/* Coluna Pré-empenho */}
                       <ColunaPreEmpenhoCell numeroPreEmpenho={item.numeroPreEmpenho} />
                       
-                      {/* Colunas após as colunas de consumo/indicadores (20 em diante) */}
+                      {/* Demais colunas */}
                       <Td>{item.registroMaster ?? '-'}</Td>
-                      <Td style={{ textAlign: 'center' }}>{item.vigenciaRegistro ? (() => { const d = parseDate(item.vigenciaRegistro); return d ? formatDate(d, 'dd/MM/yyyy') : '-'; })() : '-'}</Td>                       
+                      <Td textAlign="center">
+                        {item.vigenciaRegistro ? (() => { 
+                          const d = parseDate(item.vigenciaRegistro); 
+                          return d ? formatDate(d, 'dd/MM/yyyy') : '-'; 
+                        })() : '-'}
+                      </Td>                       
                       <Td isNumeric>{item.saldoRegistro != null ? formatarDecimal(item.saldoRegistro, 0) : '-'}</Td>
-                      {/*<Td isNumeric>{formatarDecimal(item.valorUnitRegistro)}</Td>VALOR MONETÁRIO*/}                      
-                      <Td isNumeric>{item.valorUnitRegistro != null ? "R$" + formatarDecimal(item.valorUnitRegistro) : '-'}</Td>
+                      <Td isNumeric>{item.valorUnitRegistro != null ? `R$ ${formatarDecimal(item.valorUnitRegistro)}` : '-'}</Td>
                       <Td isNumeric>
                         {isSelected ? (
                           <Input
@@ -562,16 +683,14 @@ export function ControleEmpenhos() {
                             value={edits.qtde_por_embalagem != null ? String(edits.qtde_por_embalagem) : ''}
                             onChange={(e) => {
                               const v = e.target.value;
-                              updateEdit(item.id, 'qtde_por_embalagem', v === '' ? undefined : (Number(v) || undefined));
+                              updateEdit(item.rowKey, 'qtde_por_embalagem', v === '' ? undefined : (Number(v) || undefined));
                             }}
                           />
                         ) : (
                           item.qtdePorEmbalagem != null ? formatarDecimal(item.qtdePorEmbalagem) : '-'
                         )}
                       </Td>
-                      {/* Class. XYZ: valor do banco, somente leitura */}
                       <Td>{item.classificacaoXYZ ?? '-'}</Td>
-                      {/* Tipo armazen.: editável quando checkbox selecionado — Select com opções fixas */}
                       <Td>
                         {isSelected ? (
                           <Select
@@ -579,7 +698,7 @@ export function ControleEmpenhos() {
                             minW="100px"
                             placeholder="Tipo"
                             value={edits.tipo_armazenamento ?? ''}
-                            onChange={(e) => updateEdit(item.id, 'tipo_armazenamento', e.target.value)}
+                            onChange={(e) => updateEdit(item.rowKey, 'tipo_armazenamento', e.target.value)}
                           >
                             <option value="">—</option>
                             {TIPO_ARMAZEN_OPCOES.map((op) => (
@@ -590,7 +709,6 @@ export function ControleEmpenhos() {
                           item.tipoArmazenamento ?? '-'
                         )}
                       </Td>
-                      {/* Cap. estocagem: editável quando checkbox selecionado */}
                       <Td>
                         {isSelected ? (
                           <Input
@@ -598,15 +716,13 @@ export function ControleEmpenhos() {
                             placeholder="Capacidade"
                             minW="80px"
                             value={edits.capacidade_estocagem ?? ''}
-                            onChange={(e) => updateEdit(item.id, 'capacidade_estocagem', e.target.value)}
+                            onChange={(e) => updateEdit(item.rowKey, 'capacidade_estocagem', e.target.value)}
                           />
                         ) : (
                           item.capacidadeEstocagem ?? '-'
                         )}
                       </Td>
-                      {/* Status: calculado no backend; célula + tooltip com statusDetails */}
                       <StatusCell status={item.status} statusDetails={item.statusDetails} />
-                      {/* Observação: editável quando checkbox selecionado */}
                       <Td maxW="300px">
                         {isSelected ? (
                           <Input
@@ -614,11 +730,24 @@ export function ControleEmpenhos() {
                             placeholder="Obs."
                             minW="280px"
                             value={edits.observacao ?? ''}
-                            onChange={(e) => updateEdit(item.id, 'observacao', e.target.value)}
+                            onChange={(e) => updateEdit(item.rowKey, 'observacao', e.target.value)}
                           />
                         ) : (
                           (item.observacao ?? '-').toString()
                         )}
+                      </Td>
+                      {/* Coluna Checkbox (última coluna, fixa à direita) */}
+                      <Td
+                        {...getStickyRightStyles(false)}
+                        bg={getCellBg(isSelected)}
+                        w={`${STICKY_COL_WIDTHS.check}px`}
+                        minW={`${STICKY_COL_WIDTHS.check}px`}
+                        maxW={`${STICKY_COL_WIDTHS.check}px`}
+                      >
+                        <Checkbox
+                          isChecked={isSelected}
+                          onChange={() => toggleSelect(item)}
+                        />
                       </Td>
                     </Tr>
                   );
@@ -627,6 +756,7 @@ export function ControleEmpenhos() {
             </Table>
           )}
         </TableContainer>
+        
         {total > 0 && (
           <Flex justify="space-between" align="center" p={3} borderTopWidth="1px" flexWrap="wrap" gap={2}>
             <Text fontSize="sm">

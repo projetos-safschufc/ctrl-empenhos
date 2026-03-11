@@ -70,9 +70,12 @@ export interface ItemControleEmpenho {
   registros: RegistroConsumoEstoque[];
 }
 
+/** Filtros aceitos pelo getItens (inclui qtdeRegistros para filtro por quantidade exata de registros por material). */
+type GetItensFilters = CatalogoFilters & { status?: string; comRegistro?: boolean; qtdeRegistros?: 0 | 1 | 2 | 3 };
+
 export const controleEmpenhoService = {
   async getItens(
-    filters: CatalogoFilters & { status?: string; comRegistro?: boolean },
+    filters: GetItensFilters,
     page: number,
     pageSize: number
   ): Promise<{ itens: ItemControleEmpenho[]; total: number; mesesConsumo: number[] }> {
@@ -84,12 +87,45 @@ export const controleEmpenhoService = {
       return cached;
     }
 
-    const { items: catalogItems, total } = await catalogoRepository.findMany(
-      filters,
-      page,
-      pageSize
-    );
     const meses = getMesesParaColunasConsumo();
+    let catalogItems: Awaited<ReturnType<typeof catalogoRepository.findMany>>['items'];
+    let total: number;
+
+    if (filters.qtdeRegistros !== undefined) {
+      // Filtro por quantidade exata de registros: primeiro coleta todos os masters que batem, depois pagina.
+      const BATCH = 500;
+      let pageCat = 1;
+      const collected: string[] = [];
+      const catalogFilters: CatalogoFilters = {
+        codigo: filters.codigo,
+        responsavel: filters.responsavel,
+        classificacao: filters.classificacao,
+        setor: filters.setor,
+      };
+      while (true) {
+        const { items } = await catalogoRepository.findMany(catalogFilters, pageCat, BATCH);
+        if (items.length === 0) break;
+        const mastersBatch = items.map((c) => c.master).filter((m): m is string => m != null);
+        const registrosMap = await getEstoqueESaldoPorMasters(mastersBatch);
+        for (const c of items) {
+          const m = c.master;
+          if (!m) continue;
+          const regs = filtrarRegistrosParaExibicao(registrosMap.get(m) ?? []);
+          if (regs.length === filters.qtdeRegistros) collected.push(m);
+        }
+        if (items.length < BATCH) break;
+        pageCat++;
+      }
+      collected.sort();
+      total = collected.length;
+      const mastersPage = collected.slice((page - 1) * pageSize, page * pageSize);
+      catalogItems = await catalogoRepository.findManyByMasters(mastersPage);
+    } else {
+      const result = await catalogoRepository.findMany(filters, page, pageSize);
+      catalogItems = result.items;
+      total = result.total;
+    }
+
     const mesanoAtual = meses[6];
 
     const masters = catalogItems.map((c) => c.master).filter((master): master is string => master !== null);
@@ -102,8 +138,9 @@ export const controleEmpenhoService = {
     let registrosPorMaster: Map<string, RegistroConsumoEstoque[]>;
     let registrosExibirPorMaster: Map<string, RegistroConsumoEstoque[]>;
     let estoqueGeralPorMaster: Map<string, number>;
-    let lastHistPorId: Map<string, Awaited<ReturnType<typeof histCtrlEmpenhoRepository.findLastByMaterialId>>>;
-    
+    type HistRow = Awaited<ReturnType<typeof histCtrlEmpenhoRepository.findLastByMaterialId>>;
+    let lastHistPorMaterialERegistro: Map<string, HistRow> = new Map();
+
     try {
       // OTIMIZAÇÃO: Verificar cache individual para cada tipo de dados
       const codigosKey = `codigos:${masters.sort().join(',')}`;
@@ -112,16 +149,14 @@ export const controleEmpenhoService = {
       const totaisKey = CacheKeys.totaisEstoque(masters);
       const registrosKey = CacheKeys.registrosMaster(masters);
       const estoqueGeralKey = `estoque_geral:${masters.sort().join(',')}`;
-      const histKey = `hist:${materialIds.sort().join(',')}`;
 
-      // Buscar do cache o que estiver disponível
+      // Buscar do cache o que estiver disponível (hist é buscado depois, por par material+registro)
       const cachedCodigos = memoryCache.get<Map<string, string>>(codigosKey);
       const cachedConsumos = memoryCache.get<Map<string, { mesano: number; total: number }[]>>(consumosKey);
       const cachedUltimoConsumo = memoryCache.get<Map<string, { mesano: number; qtde: number } | null>>(ultimoConsumoKey);
       const cachedTotais = memoryCache.get<Map<string, { estoqueAlmoxarifados: number; saldoEmpenhos: number }>>(totaisKey);
       const cachedRegistros = memoryCache.get<Map<string, RegistroConsumoEstoque[]>>(registrosKey);
       const cachedEstoqueGeral = memoryCache.get<Map<string, number>>(estoqueGeralKey);
-      const cachedHist = memoryCache.get<Map<string, Awaited<ReturnType<typeof histCtrlEmpenhoRepository.findLastByMaterialId>>>>(histKey);
 
       // Preparar promises apenas para dados não cacheados
       const promises: Promise<unknown>[] = [];
@@ -151,12 +186,6 @@ export const controleEmpenhoService = {
         promises.push(getEstoqueGeralPorMasters(masters));
         promiseMap.push('estoqueGeral');
       }
-      if (!cachedHist) {
-        // Converter materialIds para String (campo é String no Prisma)
-        const materialIdsStr = materialIds.map(id => String(id));
-        promises.push(histCtrlEmpenhoRepository.findLastByMaterialIds(materialIdsStr));
-        promiseMap.push('hist');
-      }
 
       // Executar apenas as queries necessárias
       const results = promises.length > 0 ? await Promise.all(promises) : [];
@@ -169,7 +198,6 @@ export const controleEmpenhoService = {
       totaisPorMaster = cachedTotais || (promiseMap.find(p => p === 'totais') ? results[promiseMap.indexOf('totais')] as Map<string, { estoqueAlmoxarifados: number; saldoEmpenhos: number }> : new Map());
       registrosPorMaster = cachedRegistros || (promiseMap.find(p => p === 'registros') ? results[promiseMap.indexOf('registros')] as Map<string, RegistroConsumoEstoque[]> : new Map());
       estoqueGeralPorMaster = cachedEstoqueGeral || (promiseMap.find(p => p === 'estoqueGeral') ? results[promiseMap.indexOf('estoqueGeral')] as Map<string, number> : new Map());
-      lastHistPorId = cachedHist || (promiseMap.find(p => p === 'hist') ? results[promiseMap.indexOf('hist')] as Map<string, Awaited<ReturnType<typeof histCtrlEmpenhoRepository.findLastByMaterialId>>> : new Map());
 
       // Armazenar no cache os dados que foram buscados
       if (!cachedCodigos && codigosPadronizados.size > 0) memoryCache.set(codigosKey, codigosPadronizados, CacheTTL.consumos);
@@ -178,13 +206,36 @@ export const controleEmpenhoService = {
       if (!cachedTotais && totaisPorMaster.size > 0) memoryCache.set(totaisKey, totaisPorMaster, CacheTTL.totaisEstoque);
       if (!cachedRegistros && registrosPorMaster.size > 0) memoryCache.set(registrosKey, registrosPorMaster, CacheTTL.registros);
       if (!cachedEstoqueGeral && estoqueGeralPorMaster.size > 0) memoryCache.set(estoqueGeralKey, estoqueGeralPorMaster, CacheTTL.totaisEstoque);
-      if (!cachedHist && lastHistPorId.size > 0) memoryCache.set(histKey, lastHistPorId, CacheTTL.controleItens);
 
       registrosExibirPorMaster = new Map<string, RegistroConsumoEstoque[]>();
       for (const m of masters) {
         const raw = registrosPorMaster.get(m) ?? [];
         registrosExibirPorMaster.set(m, filtrarRegistrosParaExibicao(raw));
       }
+
+      // Histórico por (material_id, numero_registro) para edição por linha
+      const histPairs: { materialId: string; numeroRegistro: string | null }[] = [];
+      for (const cat of catalogItems) {
+        const masterCode = cat.master;
+        if (!masterCode) continue;
+        const regs = registrosExibirPorMaster.get(masterCode) ?? [];
+        if (regs.length === 0) {
+          histPairs.push({ materialId: String(cat.id), numeroRegistro: null });
+        } else {
+          for (const reg of regs) {
+            histPairs.push({ materialId: String(cat.id), numeroRegistro: reg.numero_registro ?? null });
+          }
+        }
+      }
+      const histPairsKey = `hist:pairs:${[...new Set(histPairs.map((p) => `${p.materialId}|${p.numeroRegistro ?? ''}`))].sort().join(',')}`;
+      const cachedHistPairs = memoryCache.get<Map<string, HistRow>>(histPairsKey);
+      if (cachedHistPairs) {
+        lastHistPorMaterialERegistro = cachedHistPairs;
+      } else {
+        lastHistPorMaterialERegistro = await histCtrlEmpenhoRepository.findLastByMaterialIdAndRegistroPairs(histPairs);
+        if (lastHistPorMaterialERegistro.size > 0) memoryCache.set(histPairsKey, lastHistPorMaterialERegistro, CacheTTL.controleItens);
+      }
+
       const pairs: { master: string; numeroRegistro: string | null }[] = [];
       for (const cat of catalogItems) {
         const masterCode = cat.master;
@@ -210,7 +261,7 @@ export const controleEmpenhoService = {
       registrosPorMaster = new Map();
       registrosExibirPorMaster = new Map();
       estoqueGeralPorMaster = new Map();
-      lastHistPorId = new Map();
+      lastHistPorMaterialERegistro = new Map();
     }
 
     const itens: ItemControleEmpenho[] = [];
@@ -227,7 +278,6 @@ export const controleEmpenhoService = {
       const totais = totaisPorMaster.get(masterKey) ?? { estoqueAlmoxarifados: 0, saldoEmpenhos: 0 };
       const registros = registrosExibirPorMaster.get(masterKey) ?? [];
       const estoqueGeral = estoqueGeralPorMaster.get(masterKey) ?? 0;
-      const lastHist = lastHistPorId.get(String(cat.id)) ?? null;
 
       const porMes = consumoPorMesano(consumos);
       const mediaConsumoMov = calcularMediaConsumo6MesesAnteriores(consumos, mesanoAtual);
@@ -321,17 +371,12 @@ export const controleEmpenhoService = {
         mesUltimoConsumo: ultimoConsumoExcl?.mesano ?? null,
         qtdeUltimoConsumo: validarConsumo(ultimoConsumoExcl?.qtde),
         estoqueAlmoxarifados: validarEstoque(totais.estoqueAlmoxarifados),
-        //estoqueGeral: validarEstoque(estoqueGeral),
         estoqueGeral: validarEstoque(estoqueGeral) - validarEstoque(totais.estoqueAlmoxarifados),
         saldoEmpenhos: validarEstoque(totais.saldoEmpenhos),
         estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
         numeroPreEmpenho: null as string | null,
         coberturaEstoque: cobertura,
-        qtdePorEmbalagem: lastHist?.qtdePorEmbalagem != null ? Number(lastHist.qtdePorEmbalagem) : null,
         classificacaoXYZ: cat.xyz ?? null,
-        tipoArmazenamento: lastHist?.tipoArmazenamento ?? null,
-        capacidadeEstocagem: lastHist?.capacidadeEstocagem?.toString() ?? null,
-        observacao: lastHist?.observacao ?? null,
         comRegistro,
         registros,
       };
@@ -356,6 +401,8 @@ export const controleEmpenhoService = {
         };
         const { status: s, statusDetails: sd } = calcularStatusComDetalhes(statusInput);
         if (filters.status && filters.status !== s) continue;
+        const histKeySemRegistro = `${cat.id}|`;
+        const lastHistSemReg = lastHistPorMaterialERegistro.get(histKeySemRegistro) ?? null;
         itens.push({
           ...base,
           status: s,
@@ -366,6 +413,10 @@ export const controleEmpenhoService = {
           vigenciaRegistro: null,
           saldoRegistro: null,
           valorUnitRegistro: null,
+          qtdePorEmbalagem: lastHistSemReg?.qtdePorEmbalagem != null ? Number(lastHistSemReg.qtdePorEmbalagem) : null,
+          tipoArmazenamento: lastHistSemReg?.tipoArmazenamento ?? null,
+          capacidadeEstocagem: lastHistSemReg?.capacidadeEstocagem?.toString() ?? null,
+          observacao: lastHistSemReg?.observacao ?? null,
         });
       } else {
         for (let idx = 0; idx < registros.length; idx++) {
@@ -390,18 +441,24 @@ export const controleEmpenhoService = {
           };
           const { status: s, statusDetails: sd } = calcularStatusComDetalhes(statusInput);
           if (filters.status && filters.status !== s) continue;
+          const histKeyRegistro = `${cat.id}|${nr}`;
+          const lastHistReg = lastHistPorMaterialERegistro.get(histKeyRegistro) ?? null;
           itens.push({
-          ...base,
-          status: s,
-          statusDetails: sd,
-          numeroPreEmpenho,
-          rowKey: `${cat.id}-${nr}-${idx}`,
-          registroMaster: reg.numero_registro ?? null,
-          vigenciaRegistro: reg.vigencia ?? null,
-          saldoRegistro: reg.saldo_registro ?? null,
-          valorUnitRegistro: reg.valor_unitario ?? null,
-          estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
-        });
+            ...base,
+            status: s,
+            statusDetails: sd,
+            numeroPreEmpenho,
+            rowKey: `${cat.id}-${nr}-${idx}`,
+            registroMaster: reg.numero_registro ?? null,
+            vigenciaRegistro: reg.vigencia ?? null,
+            saldoRegistro: reg.saldo_registro ?? null,
+            valorUnitRegistro: reg.valor_unitario ?? null,
+            estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
+            qtdePorEmbalagem: lastHistReg?.qtdePorEmbalagem != null ? Number(lastHistReg.qtdePorEmbalagem) : null,
+            tipoArmazenamento: lastHistReg?.tipoArmazenamento ?? null,
+            capacidadeEstocagem: lastHistReg?.capacidadeEstocagem?.toString() ?? null,
+            observacao: lastHistReg?.observacao ?? null,
+          });
         }
       }
     }
@@ -419,6 +476,7 @@ export const controleEmpenhoService = {
     totalPendencias: number;
     totalAtencao: number;
     totalCritico: number;
+    materiaisComConsumoSemRegistro: number;
   }> {
     // OTIMIZAÇÃO: Verificar cache primeiro
     const cacheKey = CacheKeys.dashboard();
@@ -427,6 +485,7 @@ export const controleEmpenhoService = {
       totalPendencias: number;
       totalAtencao: number;
       totalCritico: number;
+      materiaisComConsumoSemRegistro: number;
     }>(cacheKey);
     
     if (cached) {
@@ -441,6 +500,7 @@ export const controleEmpenhoService = {
     let totalPendencias = 0;
     let totalAtencao = 0;
     let totalCritico = 0;
+    let materiaisComConsumoSemRegistro = 0;
     
     const meses = getMesesParaColunasConsumo();
     const mesanoAtual = meses[6];
@@ -526,6 +586,8 @@ export const controleEmpenhoService = {
 
         if (registros.length === 0) {
           totalPendencias++;
+          const temConsumo = consumoMesAtual > 0 || media > 0 || consumos.some((c) => (c.total ?? 0) > 0);
+          if (temConsumo) materiaisComConsumoSemRegistro++;
           const statusInput: StatusInput = {
             estoqueAlmoxarifados: totais.estoqueAlmoxarifados,
             estoqueGeral: 0,
@@ -574,6 +636,7 @@ export const controleEmpenhoService = {
       totalPendencias,
       totalAtencao,
       totalCritico,
+      materiaisComConsumoSemRegistro,
     };
     
     // OTIMIZAÇÃO: Armazenar resultado no cache

@@ -79,12 +79,6 @@ export function Dashboard() {
         {formatDate(new Date(), "dd/MM/yyyy HH:mm")} - {new Date().toLocaleDateString('pt-BR', { weekday: 'long' })}
       </Text>
 
-      <Flex mb={6}>
-        <Link as={RouterLink} to="/tutorial" color="brand.600" fontWeight="medium" _hover={{ textDecoration: 'underline' }}>
-          📖 Tutorial da aplicação (visualizar e exportar em PDF)
-        </Link>
-      </Flex>
-
       <Flex justify="space-between" align="center" mb={3} flexWrap="wrap" gap={2}>
         <Heading size="sm" color="brand.darkGreen">
           Resumo do Controle de Empenhos

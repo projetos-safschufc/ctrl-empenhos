@@ -11,9 +11,10 @@ export const CacheKeys = {
     responsavel?: string;
     status?: string;
     comRegistro?: boolean;
+    qtdeRegistros?: number;
   }) => {
     const p = params ?? {};
-    return `controle-itens:${p.page ?? 1}:${p.pageSize ?? 20}:${p.codigo ?? ''}:${p.responsavel ?? ''}:${p.status ?? ''}:${p.comRegistro ?? ''}`;
+    return `controle-itens:${p.page ?? 1}:${p.pageSize ?? 20}:${p.codigo ?? ''}:${p.responsavel ?? ''}:${p.status ?? ''}:${p.comRegistro ?? ''}:${p.qtdeRegistros ?? ''}`;
   },
   movimentacao: (params: { mesano: string; page?: number; pageSize?: number; almoxarifado?: string; setor_controle?: string; movimento?: string; material?: string }) => {
     const p = params ?? {};

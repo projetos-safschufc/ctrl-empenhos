@@ -29,17 +29,20 @@ export const controleEmpenhoController = {
     const setor = req.query.setor as string | undefined;
     const status = req.query.status as string | undefined;
     const comRegistro = req.query.comRegistro as string | undefined;
+    const qtdeRegistrosRaw = req.query.qtdeRegistros as string | undefined;
     const page = parsePage(req.query.page);
     const isExport = req.query.export === 'true';
     const pageSize = parsePageSize(req.query.pageSize, isExport);
 
-    const filters: CatalogoFilters & { status?: string; comRegistro?: boolean } = {};
+    const filters: CatalogoFilters & { status?: string; comRegistro?: boolean; qtdeRegistros?: 0 | 1 | 2 | 3 } = {};
     if (codigo) filters.codigo = codigo;
     if (responsavel) filters.responsavel = responsavel;
     if (classificacao) filters.classificacao = classificacao;
     if (setor) filters.setor = setor;
     if (status) filters.status = status;
     if (comRegistro !== undefined) filters.comRegistro = comRegistro === 'true';
+    const qr = qtdeRegistrosRaw !== undefined && qtdeRegistrosRaw !== '' ? parseInt(qtdeRegistrosRaw, 10) : NaN;
+    if (Number.isInteger(qr) && qr >= 0 && qr <= 3) filters.qtdeRegistros = qr as 0 | 1 | 2 | 3;
 
     try {
       const { itens, total, mesesConsumo } = await controleEmpenhoService.getItens(filters, page, pageSize);
@@ -62,12 +65,16 @@ export const controleEmpenhoController = {
     }
   },
 
-  /** Retorna opções para filtros da tela (classificações e responsáveis distintos do catálogo). */
+  /**
+   * Retorna opções para filtros da tela (classificações e responsáveis distintos do catálogo).
+   * Query opcional: setor — quando informado, retorna apenas classificações e responsáveis do respectivo setor.
+   */
   async getOpcoesFiltros(req: Request, res: Response) {
     try {
+      const setor = (req.query.setor as string)?.trim() || undefined;
       const [classificacoes, responsaveis] = await Promise.all([
-        catalogoRepository.findDistinctClassificacoes(),
-        catalogoRepository.findDistinctResponsaveis(),
+        catalogoRepository.findDistinctClassificacoes(setor),
+        catalogoRepository.findDistinctResponsaveis(setor),
       ]);
       res.json({ classificacoes, responsaveis });
     } catch (err) {

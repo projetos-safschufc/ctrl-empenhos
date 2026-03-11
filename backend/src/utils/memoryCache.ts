@@ -206,9 +206,9 @@ export const CacheKeys = {
   registrosMaster: (masters: string[]) =>
     `registros:${masters.sort().join(',')}`,
   
-  // Movimentação diária (cache médio)
-  movimentacao: (mesano: string, filters: Record<string, unknown>, page: number) =>
-    `movimentacao:${mesano}:${JSON.stringify(filters)}:${page}`,
+  // Movimentação diária (cache médio) — page e pageSize na chave para paginação correta
+  movimentacao: (mesano: string, filters: Record<string, unknown>, page: number, pageSize: number) =>
+    `movimentacao:${mesano}:${JSON.stringify(filters)}:${page}:${pageSize}`,
   
   // Opções de filtros (cache longo)
   filtrosOpcoes: (mesano: string) =>

@@ -77,4 +77,28 @@ export const histCtrlEmpenhoRepository = {
     }
     return map;
   },
+
+  /**
+   * Último registro de histórico por (material_id, numero_registro).
+   * Permite edição por linha: cada combinação material+registro tem seus próprios valores de
+   * qtde_por_embalagem, tipo_armazenamento, capacidade_estocagem, observacao.
+   * Chave do Map: "materialId|numeroRegistro" (numeroRegistro vazio string para sem registro).
+   */
+  async findLastByMaterialIdAndRegistroPairs(
+    pairs: { materialId: string; numeroRegistro: string | null }[]
+  ): Promise<Map<string, Awaited<ReturnType<typeof this.findLastByMaterialId>>>> {
+    if (pairs.length === 0) return new Map();
+    const materialIds = [...new Set(pairs.map((p) => p.materialId))];
+    const rows = await prisma.histCtrlEmpenho.findMany({
+      where: { materialId: { in: materialIds } },
+      orderBy: { id: 'desc' },
+    });
+    const map = new Map<string, Awaited<ReturnType<typeof this.findLastByMaterialId>>>();
+    for (const row of rows) {
+      const nr = row.numeroRegistro ?? '';
+      const key = `${row.materialId}|${nr}`;
+      if (!map.has(key)) map.set(key, row);
+    }
+    return map;
+  },
 };

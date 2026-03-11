@@ -37,7 +37,7 @@ export const movimentacaoDiariaService = {
       movimento: query.movimento,
       material: query.material,
     };
-    const cacheKey = CacheKeys.movimentacao(mesano, filters, query.page || 1);
+    const cacheKey = CacheKeys.movimentacao(mesano, filters, query.page || 1, query.pageSize || 20);
     const cached = memoryCache.get<{
       mesano: string;
       itens: MovimentacaoDiariaItem[];

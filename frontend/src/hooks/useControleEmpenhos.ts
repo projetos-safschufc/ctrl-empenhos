@@ -10,9 +10,19 @@ import {
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 import { MAX_EXPORT_ROWS } from '../utils/plataformaExport';
 
-const PAGE_SIZE_OPTIONS = [15, 25, 50, 100] as const;
+/**
+ * Opções de paginação permitidas na tela de Gestão de Estoque.
+ * Valores muito altos (ex.: 100+) deixam a renderização da tabela pesada,
+ * pois há muitas colunas e componentes por linha. Limitamos aqui a 50
+ * para equilibrar usabilidade e performance; para grandes volumes o fluxo
+ * recomendado continua sendo a exportação para Excel.
+ */
+const PAGE_SIZE_OPTIONS = [15, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 15;
 const DASHBOARD_KEY = CacheKeys.controleDashboard();
+
+/** Valor do filtro por quantidade de registros: '' = todos, '0'|'1'|'2'|'3' = exatamente N registros por material. */
+export const QTDE_REGISTROS_OPCOES = ['', '0', '1', '2', '3'] as const;
 
 function buildItensParams(
   filtroCodigo: string,
@@ -21,9 +31,12 @@ function buildItensParams(
   filtroSetor: string,
   filtroStatus: string,
   filtroComRegistro: string,
+  filtroQtdeRegistros: string,
   page: number,
   pageSize: number
 ) {
+  const qr =
+    filtroQtdeRegistros === '' ? undefined : (Number(filtroQtdeRegistros) as 0 | 1 | 2 | 3);
   return {
     page,
     pageSize,
@@ -34,12 +47,20 @@ function buildItensParams(
     status: filtroStatus || undefined,
     comRegistro:
       filtroComRegistro === 'true' ? true : filtroComRegistro === 'false' ? false : undefined,
+    qtdeRegistros: qr,
   };
 }
 
+/** Chave de edição por linha (rowKey do item) para suportar valores diferentes por registro do mesmo material. */
 export type EditValuesMap = Record<
-  number,
-  { qtde_por_embalagem?: number; tipo_armazenamento?: string; capacidade_estocagem?: string; observacao?: string }
+  string,
+  {
+    qtde_por_embalagem?: number;
+    tipo_armazenamento?: string;
+    capacidade_estocagem?: string;
+    observacao?: string;
+    responsavel?: string;
+  }
 >;
 
 export function useControleEmpenhos() {
@@ -65,11 +86,12 @@ export function useControleEmpenhos() {
   const [filtroSetor, setFiltroSetor] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<string>('');
   const [filtroComRegistro, setFiltroComRegistro] = useState<string>('');
+  const [filtroQtdeRegistros, setFiltroQtdeRegistros] = useState<string>('');
 
   const [opcoesClassificacao, setOpcoesClassificacao] = useState<string[]>([]);
   const [opcoesResponsavel, setOpcoesResponsavel] = useState<string[]>([]);
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<EditValuesMap>({});
   const [saving, setSaving] = useState(false);
 
@@ -104,6 +126,7 @@ export function useControleEmpenhos() {
         filtroSetor,
         filtroStatus,
         filtroComRegistro,
+        filtroQtdeRegistros,
         page,
         pageSize
       );
@@ -137,6 +160,7 @@ export function useControleEmpenhos() {
       filtroSetor,
       filtroStatus,
       filtroComRegistro,
+      filtroQtdeRegistros,
       page,
       pageSize,
       toast,
@@ -151,17 +175,30 @@ export function useControleEmpenhos() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await controleEmpenhosApi.getOpcoesFiltros();
+      const setor = filtroSetor.trim() || undefined;
+      const { data } = await controleEmpenhosApi.getOpcoesFiltros(setor);
       if (data) {
-        if (Array.isArray(data.classificacoes)) setOpcoesClassificacao(data.classificacoes);
-        if (Array.isArray(data.responsaveis)) setOpcoesResponsavel(data.responsaveis);
+        const classificacoes = Array.isArray(data.classificacoes) ? data.classificacoes : [];
+        const responsaveis = Array.isArray(data.responsaveis) ? data.responsaveis : [];
+        setOpcoesClassificacao(classificacoes);
+        setOpcoesResponsavel(responsaveis);
+        setFiltroResponsavel((prev) =>
+          prev.trim() && responsaveis.length > 0 && !responsaveis.includes(prev.trim()) ? '' : prev
+        );
+        setFiltroClassificacao((prev) =>
+          prev.trim() && classificacoes.length > 0 && !classificacoes.includes(prev.trim()) ? '' : prev
+        );
       }
     })();
-  }, []);
+  }, [filtroSetor]);
 
   useEffect(() => {
     loadItens();
   }, [loadItens]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filtroQtdeRegistros]);
 
   const aplicarFiltros = useCallback(() => {
     setPage(1);
@@ -174,10 +211,10 @@ export function useControleEmpenhos() {
   }, [invalidateControleEmpenhos, loadDashboard, loadItens]);
 
   const handleSave = useCallback(async () => {
-    if (selectedId == null) return;
-    const vals = editValues[selectedId];
+    if (selectedRowKey == null) return;
+    const vals = editValues[selectedRowKey];
     if (!vals) return;
-    const item = itens.find((i) => i.id === selectedId);
+    const item = itens.find((i) => i.rowKey === selectedRowKey);
     if (!item) return;
     setSaving(true);
     const toNum = (v: number | undefined | null): number | undefined => {
@@ -213,48 +250,48 @@ export function useControleEmpenhos() {
       return;
     }
     toast({ title: 'Histórico salvo', status: 'success' });
-    setSelectedId(null);
+    setSelectedRowKey(null);
     setEditValues((prev) => {
       const next = { ...prev };
-      delete next[selectedId];
+      delete next[selectedRowKey];
       return next;
     });
     invalidateControleEmpenhos();
     loadItens(true);
-  }, [selectedId, editValues, itens, toast, invalidateControleEmpenhos, loadItens]);
+  }, [selectedRowKey, editValues, itens, toast, invalidateControleEmpenhos, loadItens]);
 
   const toggleSelect = useCallback((item: ItemControleEmpenho) => {
-    setSelectedId((prevId) => {
-      if (prevId === item.id) {
+    setSelectedRowKey((prevKey) => {
+      if (prevKey === item.rowKey) {
         setEditValues((prev) => {
           const next = { ...prev };
-          delete next[item.id];
+          delete next[item.rowKey];
           return next;
         });
         return null;
       }
       setEditValues((prev) => ({
         ...prev,
-        [item.id]: {
+        [item.rowKey]: {
           qtde_por_embalagem: item.qtdePorEmbalagem != null ? Number(item.qtdePorEmbalagem) : undefined,
           tipo_armazenamento: item.tipoArmazenamento ?? '',
           capacidade_estocagem: item.capacidadeEstocagem ?? '',
           observacao: item.observacao ?? '',
         },
       }));
-      return item.id;
+      return item.rowKey;
     });
   }, []);
 
-  const updateEdit = useCallback((id: number, field: string, value: string | number | undefined) => {
+  const updateEdit = useCallback((rowKey: string, field: string, value: string | number | undefined) => {
     setEditValues((prev) => ({
       ...prev,
-      [id]: { ...prev[id], [field]: value === '' ? undefined : value },
+      [rowKey]: { ...prev[rowKey], [field]: value === '' ? undefined : value },
     }));
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasDirty = selectedId != null && editValues[selectedId];
+  const hasDirty = selectedRowKey != null && editValues[selectedRowKey];
   const consumoHeaders = useMemo(() => getConsumoHeaders(mesesConsumo), [mesesConsumo]);
 
   /**
@@ -273,6 +310,7 @@ export function useControleEmpenhos() {
       filtroSetor,
       filtroStatus,
       filtroComRegistro,
+      filtroQtdeRegistros,
       1,
       exportPageSize
     );
@@ -295,6 +333,7 @@ export function useControleEmpenhos() {
     filtroSetor,
     filtroStatus,
     filtroComRegistro,
+    filtroQtdeRegistros,
   ]);
 
   return {
@@ -320,9 +359,11 @@ export function useControleEmpenhos() {
     setFiltroStatus,
     filtroComRegistro,
     setFiltroComRegistro,
+    filtroQtdeRegistros,
+    setFiltroQtdeRegistros,
     opcoesClassificacao,
     opcoesResponsavel,
-    selectedId,
+    selectedRowKey,
     editValues,
     saving,
     loadDashboard,

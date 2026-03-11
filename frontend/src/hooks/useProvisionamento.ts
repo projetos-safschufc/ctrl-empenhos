@@ -1,6 +1,11 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useToast } from '@chakra-ui/react';
-import { provisionamentoApi, LinhaProvisionamentoRegistroAtivo } from '../api/client';
+import {
+  provisionamentoApi,
+  LinhaProvisionamentoRegistroAtivo,
+  getMesesUltimos6,
+  getConsumoHeaders,
+} from '../api/client';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 
 const PAGE_SIZE = 50;
@@ -110,6 +115,8 @@ export function useProvisionamento() {
         toast({ title: 'Material encontrado, mas sem registros ativos', status: 'info' });
         return;
       }
+      const consumosPorMes = data.consumosPorMes ?? Array(7).fill(0);
+      const coberturaEstoque = data.coberturaEstoque ?? (data.mediaConsumo > 0 ? data.estoqueVirtual / data.mediaConsumo : null);
       const novasLinhas: LinhaProvisionamento[] = data.registros.map((r, idx) => ({
         id: `${data.codigo}-${r.numero_registro ?? idx}-${Date.now()}`,
         codigo: data.codigo,
@@ -125,6 +132,8 @@ export function useProvisionamento() {
         qtdePedida: 0,
         observacao: '',
         valorTotal: 0,
+        consumosPorMes,
+        coberturaEstoque,
       }));
       setLinhas((prev) => [...prev, ...novasLinhas]);
       setCodigoBusca('');
@@ -177,16 +186,23 @@ export function useProvisionamento() {
 
     const materiais = Array.from(materiaisMap.entries()).map(([, linhasMaterial]) => {
       const primeiraLinha = linhasMaterial[0];
+      const consumosPorMes = (primeiraLinha.consumosPorMes ?? []).length >= 7
+        ? primeiraLinha.consumosPorMes!
+        : Array.from({ length: 7 }, (_, i) => (primeiraLinha.consumosPorMes ?? [])[i] ?? 0);
       return {
         codigoMaterial: primeiraLinha.codigo,
         descricao: primeiraLinha.descricao,
         mediaConsumo6Meses: primeiraLinha.mediaConsumo,
+        consumosPorMes,
+        estoqueAlmoxarifados: primeiraLinha.estoqueAlmoxarifados,
+        coberturaEstoque: primeiraLinha.coberturaEstoque ?? undefined,
         linhas: linhasMaterial.map((l) => ({
           numero_registro: l.numeroRegistro ?? undefined,
           vigencia: l.vigencia ?? undefined,
           valor_unitario: l.valorUnitario ?? undefined,
           qtde_pedida: l.qtdePedida,
           observacao: l.observacao || undefined,
+          saldo_registro: l.saldoRegistro ?? undefined,
         })),
       };
     });
@@ -212,6 +228,11 @@ export function useProvisionamento() {
   const totalGeral = useMemo(
     () => linhasFiltradas.reduce((s, l) => s + l.valorTotal, 0),
     [linhasFiltradas]
+  );
+
+  const consumoHeaders = useMemo(
+    () => getConsumoHeaders(getMesesUltimos6()),
+    []
   );
 
   return {
@@ -241,5 +262,6 @@ export function useProvisionamento() {
     limparTabela,
     handleGerarPdf,
     totalGeral,
+    consumoHeaders,
   };
 }

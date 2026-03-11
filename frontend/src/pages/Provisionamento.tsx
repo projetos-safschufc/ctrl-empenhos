@@ -20,12 +20,31 @@ import {
 import { DeleteIcon } from '@chakra-ui/icons';
 import { useProvisionamento } from '../hooks/useProvisionamento';
 import { parseDate } from '../utils/date';
+import { ColunaConsumoCell } from '../utils/columnRenderers';
 
 /** Gera e faz download de um CSV com as linhas atuais da tabela (UTF-8 com BOM para Excel). */
-function exportarCsvProvisionamento(linhas: Array<{ codigo: string; descricao: string | null; mediaConsumo: number; estoqueAlmoxarifados: number; estoqueVirtual: number; tempoAbastecimento: number | null; numeroRegistro: string | null; saldoRegistro: number | null; vigencia: string | null; valorUnitario: number | null; qtdePedida: number; valorTotal: number; observacao: string }>) {
+function exportarCsvProvisionamento(linhas: Array<{
+  codigo: string;
+  descricao: string | null;
+  mediaConsumo: number;
+  estoqueAlmoxarifados: number;
+  estoqueVirtual: number;
+  tempoAbastecimento: number | null;
+  numeroRegistro: string | null;
+  saldoRegistro: number | null;
+  vigencia: string | null;
+  valorUnitario: number | null;
+  qtdePedida: number;
+  valorTotal: number;
+  observacao: string;
+  consumosPorMes?: number[];
+  coberturaEstoque?: number | null;
+}>) {
   const cols = [
     'Código',
     'Descritivo',
+    'Consumo mês-6', 'Consumo mês-5', 'Consumo mês-4', 'Consumo mês-3', 'Consumo mês-2', 'Consumo mês-1', 'Consumo mês atual',
+    /*'Cobertura estoque (meses)',*/
     'Média consumo (6 meses)',
     'Estoque (almoxarifados)',
     'Estoque virtual',
@@ -45,10 +64,13 @@ function exportarCsvProvisionamento(linhas: Array<{ codigo: string; descricao: s
   };
   const fmtNum = (n: number | null | undefined) =>
     n != null ? Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '';
+  const consumos = (r: (typeof linhas)[0]) => (r.consumosPorMes ?? []).slice(0, 7);
   const row = (r: (typeof linhas)[0]) =>
     [
       r.codigo,
       r.descricao ?? '',
+      ...Array.from({ length: 7 }, (_, i) => consumos(r)[i] ?? 0),
+      r.coberturaEstoque != null ? fmtNum(r.coberturaEstoque) : '',
       fmtNum(r.mediaConsumo),
       fmtNum(r.estoqueAlmoxarifados),
       fmtNum(r.estoqueVirtual),
@@ -99,6 +121,7 @@ export function Provisionamento() {
     handleGerarPdf,
     totalGeral,
     linhasFiltradas,
+    consumoHeaders,
   } = useProvisionamento();
 
   return (
@@ -183,10 +206,29 @@ export function Provisionamento() {
                   <Thead>
                     <Tr>
                       <Th>Código/Descritivo</Th>
+                      {consumoHeaders.map((h, i) => {
+                        const isLast = i === consumoHeaders.length - 1;
+                        const match = isLast && h.match(/^Mês Atual \((.+)\)$/);
+                        if (match) {
+                          return (
+                            <Th key={i} whiteSpace="normal" fontSize="xs">
+                              <Box as="span" whiteSpace="normal" lineHeight="tight" fontSize="xs">
+                                Mês Atual
+                                <br />
+                                ({match[1]})
+                              </Box>
+                            </Th>
+                          );
+                        }
+                        return (
+                          <Th key={i} isNumeric fontSize="xs">
+                            {h}
+                          </Th>
+                        );
+                      })}
                       <Th isNumeric title="Últimos 6 meses">Média consumo (6 meses)</Th>
                       <Th isNumeric>Estoque (almoxarifados)</Th>
-                      <Th isNumeric>Estoque virtual (emp)</Th>
-                      <Th isNumeric>Tempo abast do estoque</Th>
+                      <Th isNumeric>Cobertura de estoque (meses)</Th>
                       <Th>Número registro</Th>
                       <Th isNumeric>Saldo registro</Th>
                       <Th>Vigência</Th>
@@ -198,7 +240,11 @@ export function Provisionamento() {
                     </Tr>
                   </Thead>
                   <Tbody>
-                    {linhasPagina.map((linha) => (
+                    {linhasPagina.map((linha) => {
+                      const consumosPorMes = (linha.consumosPorMes ?? []).length >= 7
+                        ? linha.consumosPorMes!
+                        : Array.from({ length: 7 }, (_, i) => (linha.consumosPorMes ?? [])[i] ?? 0);
+                      return (
                       <Tr key={linha.id}>
                         <Td>
                           <Box>
@@ -212,6 +258,9 @@ export function Provisionamento() {
                             )}
                           </Box>
                         </Td>
+                        {consumosPorMes.slice(0, 7).map((consumo, i) => (
+                          <ColunaConsumoCell key={i} consumo={consumo} />
+                        ))}
                         <Td isNumeric>
                           {linha.mediaConsumo.toLocaleString('pt-BR', {
                             minimumFractionDigits: 2,
@@ -220,12 +269,6 @@ export function Provisionamento() {
                         </Td>
                         <Td isNumeric>
                           {linha.estoqueAlmoxarifados.toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </Td>
-                        <Td isNumeric>
-                          {linha.estoqueVirtual.toLocaleString('pt-BR', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
@@ -305,7 +348,8 @@ export function Provisionamento() {
                           />
                         </Td>
                       </Tr>
-                    ))}
+                      );
+                    })}
                   </Tbody>
                 </Table>
               </Box>
