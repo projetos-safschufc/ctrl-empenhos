@@ -130,7 +130,7 @@ class MemoryCache {
       this.cache.delete(key);
     }
     
-    if (keysToDelete.length > 0) {
+    if (keysToDelete.length > 0 && process.env.DEBUG === 'true') {
       console.log(`[MemoryCache] Limpeza automática: ${keysToDelete.length} itens removidos`);
     }
   }
@@ -217,7 +217,7 @@ export const CacheKeys = {
 
 // TTLs específicos por tipo de dados (em milissegundos)
 export const CacheTTL = {
-  dashboard: 15 * 60 * 1000,      // 15 minutos - dados do dashboard
+  dashboard: 30 * 60 * 1000,      // 30 minutos - dados do dashboard (reduz chamadas na primeira carga)
   controleItens: 5 * 60 * 1000,   // 5 minutos - listagem de itens
   consumos: 60 * 60 * 1000,       // 1 hora - dados históricos de consumo
   totaisEstoque: 2 * 60 * 1000,   // 2 minutos - dados de estoque (mais dinâmicos)

@@ -138,6 +138,10 @@ export function ControleEmpenhos() {
     consumoHeaders,
     fetchItensForExport,
     PAGE_SIZE_OPTIONS,
+    sortBy,
+    sortDir,
+    setSortBy,
+    setSortDir,
   } = useControleEmpenhos();
 
   const toast = useToast();
@@ -222,6 +226,20 @@ export function ControleEmpenhos() {
   // Função para obter a classificação
   const getClassificacao = (item: any): string => {
     return item.classificacao ?? item.CLASSIFICACAO ?? '-';
+  };
+
+  const handleSort = (field: 'master' | 'cobertura' | 'vigencia') => {
+    if (sortBy === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortDir('asc');
+    }
+  };
+
+  const renderSortIndicator = (field: 'master' | 'cobertura' | 'vigencia') => {
+    if (sortBy !== field) return null;
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
   };
 
   return (
@@ -451,8 +469,10 @@ export function ControleEmpenhos() {
                     minW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
                     maxW={`${STICKY_COL_WIDTHS.masterDescritivo}px`}
                     textAlign="left"
+                    cursor="pointer"
+                    onClick={() => handleSort('master')}
                   >
-                    Master/Descritivo
+                    Master/Descritivo{renderSortIndicator('master')}
                   </Th>
                   <Th
                     {...getStickyStyles('apres', true)}
@@ -513,10 +533,17 @@ export function ControleEmpenhos() {
                   <ThQuebraLinha linha1="Outros" linha2="Estoques" isNumeric />
                   <ThQuebraLinha linha1="Qtde a" linha2="Receber" isNumeric />
                   <ThQuebraLinha linha1="Estoque" linha2="virtual" isNumeric title="Estoque almox. + Saldo empenhos" />
-                  <ThQuebraLinha linha1="Cobertura" linha2="estoque" />
+                  <ThQuebraLinha
+                    linha1={`Cobertura${renderSortIndicator('cobertura') ?? ''}`}
+                    linha2="estoque"
+                    onClick={() => handleSort('cobertura')}
+                    cursor="pointer"
+                  />
                   <ThQuebraLinha linha1="Pré-" linha2="Empenho" />
                   <Th>Registro</Th>
-                  <Th>Vigência</Th>
+                  <Th cursor="pointer" onClick={() => handleSort('vigencia')}>
+                    Vigência{renderSortIndicator('vigencia')}
+                  </Th>
                   <ThQuebraLinha linha1="Saldo" linha2="registro" isNumeric />
                   <ThQuebraLinha linha1="Valor unit." linha2="registro" isNumeric />
                   <Th>Qtde/emb.</Th>

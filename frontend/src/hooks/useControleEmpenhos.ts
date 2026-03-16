@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useToast } from '@chakra-ui/react';
 import {
   controleEmpenhosApi,
@@ -33,7 +33,9 @@ function buildItensParams(
   filtroComRegistro: string,
   filtroQtdeRegistros: string,
   page: number,
-  pageSize: number
+  pageSize: number,
+  sortBy: 'master' | 'cobertura' | 'vigencia' | null,
+  sortDir: 'asc' | 'desc'
 ) {
   const qr =
     filtroQtdeRegistros === '' ? undefined : (Number(filtroQtdeRegistros) as 0 | 1 | 2 | 3);
@@ -48,6 +50,8 @@ function buildItensParams(
     comRegistro:
       filtroComRegistro === 'true' ? true : filtroComRegistro === 'false' ? false : undefined,
     qtdeRegistros: qr,
+    sortBy: sortBy ?? undefined,
+    sortDir,
   };
 }
 
@@ -94,6 +98,9 @@ export function useControleEmpenhos() {
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<EditValuesMap>({});
   const [saving, setSaving] = useState(false);
+  const dashboardPromiseRef = useRef<Promise<void> | null>(null);
+  const [sortBy, setSortBy] = useState<'master' | 'cobertura' | 'vigencia' | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   const loadDashboard = useCallback(
     async (skipCache = false) => {
@@ -105,14 +112,33 @@ export function useControleEmpenhos() {
           return;
         }
       }
+      const inFlight = dashboardPromiseRef.current;
+      if (inFlight) {
+        await inFlight;
+        const cached = getCached<DashboardControleResponse>(DASHBOARD_KEY);
+        if (cached) setDashboard(cached);
+        setLoadingDashboard(false);
+        return;
+      }
       setLoadingDashboard(true);
-      const { data, error } = await controleEmpenhosApi.getDashboard();
-      if (error) toast({ title: error, status: 'error' });
-      const next =
-        data && typeof data === 'object' && 'totalMateriais' in data ? data : null;
-      setDashboard(next);
-      if (next) setCached(DASHBOARD_KEY, next);
-      setLoadingDashboard(false);
+      const promise = (async () => {
+        try {
+          const { data, error } = await controleEmpenhosApi.getDashboard();
+          if (error) toast({ title: error, status: 'error' });
+          const next =
+            data && typeof data === 'object' && 'totalMateriais' in data ? data : null;
+          setDashboard(next);
+          if (next) setCached(DASHBOARD_KEY, next);
+        } finally {
+          dashboardPromiseRef.current = null;
+        }
+      })();
+      dashboardPromiseRef.current = promise;
+      try {
+        await promise;
+      } finally {
+        setLoadingDashboard(false);
+      }
     },
     [toast, getCached, setCached]
   );
@@ -128,7 +154,9 @@ export function useControleEmpenhos() {
         filtroComRegistro,
         filtroQtdeRegistros,
         page,
-        pageSize
+        pageSize,
+        sortBy,
+        sortDir
       );
       const itensKey = CacheKeys.controleItens(params);
       if (!skipCache) {
@@ -163,6 +191,8 @@ export function useControleEmpenhos() {
       filtroQtdeRegistros,
       page,
       pageSize,
+      sortBy,
+      sortDir,
       toast,
       getCached,
       setCached,
@@ -198,7 +228,7 @@ export function useControleEmpenhos() {
 
   useEffect(() => {
     setPage(1);
-  }, [filtroQtdeRegistros]);
+  }, [filtroQtdeRegistros, sortBy, sortDir]);
 
   const aplicarFiltros = useCallback(() => {
     setPage(1);
@@ -294,6 +324,51 @@ export function useControleEmpenhos() {
   const hasDirty = selectedRowKey != null && editValues[selectedRowKey];
   const consumoHeaders = useMemo(() => getConsumoHeaders(mesesConsumo), [mesesConsumo]);
 
+  const sortedItens = useMemo(() => {
+    if (!sortBy) return itens;
+    const copy = [...itens];
+
+    const compare = (a: ItemControleEmpenho, b: ItemControleEmpenho): number => {
+      const dir = sortDir === 'desc' ? -1 : 1;
+
+      if (sortBy === 'cobertura') {
+        const va = a.coberturaEstoque;
+        const vb = b.coberturaEstoque;
+        const aNull = va == null;
+        const bNull = vb == null;
+        if (aNull && bNull) return 0;
+        if (aNull) return 1; // nulos sempre no final
+        if (bNull) return -1;
+        return dir * ((va as number) - (vb as number));
+      }
+
+      if (sortBy === 'vigencia') {
+        const toTime = (s: string | null): number => {
+          if (!s) return Number.NaN;
+          const t = Date.parse(s);
+          return Number.isNaN(t) ? Number.NaN : t;
+        };
+        const ta = toTime(a.vigenciaRegistro);
+        const tb = toTime(b.vigenciaRegistro);
+        const aNull = !Number.isFinite(ta);
+        const bNull = !Number.isFinite(tb);
+        if (aNull && bNull) return 0;
+        if (aNull) return 1; // datas nulas/invalidas no final
+        if (bNull) return -1;
+        if (ta === tb) return 0;
+        return dir * (ta < tb ? -1 : 1);
+      }
+
+      // sortBy === 'master'
+      const va = a.masterDescritivo ?? '';
+      const vb = b.masterDescritivo ?? '';
+      return dir * String(va).localeCompare(String(vb), 'pt-BR', { sensitivity: 'base' });
+    };
+
+    copy.sort(compare);
+    return copy;
+  }, [itens, sortBy, sortDir]);
+
   /**
    * Busca todos os itens conforme os filtros atuais para exportação Excel (até MAX_EXPORT_ROWS).
    * Usa o mesmo contrato da API com export=true para permitir pageSize maior no backend.
@@ -312,7 +387,9 @@ export function useControleEmpenhos() {
       filtroComRegistro,
       filtroQtdeRegistros,
       1,
-      exportPageSize
+      exportPageSize,
+      sortBy,
+      sortDir
     );
     const { data, error } = await controleEmpenhosApi.getItens({
       ...params,
@@ -334,11 +411,13 @@ export function useControleEmpenhos() {
     filtroStatus,
     filtroComRegistro,
     filtroQtdeRegistros,
+    sortBy,
+    sortDir,
   ]);
 
   return {
     dashboard,
-    itens,
+    itens: sortedItens,
     mesesConsumo,
     total,
     page,
@@ -378,5 +457,9 @@ export function useControleEmpenhos() {
     consumoHeaders,
     fetchItensForExport,
     PAGE_SIZE_OPTIONS,
+    sortBy,
+    sortDir,
+    setSortBy,
+    setSortDir,
   };
 }

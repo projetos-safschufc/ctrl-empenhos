@@ -116,15 +116,22 @@ export async function exportarExcelControleEmpenhos(
       item.estoqueVirtual != null && Number.isFinite(Number(item.estoqueVirtual))
         ? Number(item.estoqueVirtual)
         : (Number(item.estoqueAlmoxarifados) || 0) + (Number(item.saldoEmpenhos) || 0);
-    const vigenciaStr =
+    const vigenciaDate =
       item.vigenciaRegistro != null && item.vigenciaRegistro !== ''
         ? (() => {
             const s = String(item.vigenciaRegistro).trim();
             const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-            if (match) return `${match[3]}/${match[2]}/${match[1]}`;
-            return s;
+            if (match) {
+              const year = Number(match[1]);
+              const month = Number(match[2]);
+              const day = Number(match[3]);
+              if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+                return new Date(year, month - 1, day);
+              }
+            }
+            return null;
           })()
-        : '-';
+        : null;
 
     const row = [
       item.classificacao ?? '-',
@@ -145,10 +152,10 @@ export async function exportarExcelControleEmpenhos(
       Number(item.estoqueGeral) ?? 0,
       Number(item.saldoEmpenhos) ?? 0,
       estoqueVirtual,
-      item.coberturaEstoque != null ? formatarDecimal(item.coberturaEstoque, 1) : '-',
+      item.coberturaEstoque != null ? Number(item.coberturaEstoque) : null,
       item.numeroPreEmpenho ?? '-',
       item.registroMaster ?? '-',
-      vigenciaStr,
+      vigenciaDate,
       item.saldoRegistro != null ? formatarDecimal(item.saldoRegistro, 0) : '-',
       item.valorUnitRegistro != null ? 'R$ ' + formatarDecimal(item.valorUnitRegistro) : '-',
       item.qtdePorEmbalagem != null ? formatarDecimal(item.qtdePorEmbalagem) : '-',
@@ -164,7 +171,15 @@ export async function exportarExcelControleEmpenhos(
   const colCount = headers.length;
   for (let i = 1; i <= colCount; i++) {
     const col = ws.getColumn(i);
-    if (col) col.width = i === 3 ? 50 : i <= 7 ? 14 : 16;
+    if (col) {
+      col.width = i === 3 ? 50 : i <= 7 ? 14 : 16;
+      // 19 = coluna "Cobertura estoque"; 22 = coluna "Vigência"
+      if (i === 19) {
+        col.numFmt = '0.0';
+      } else if (i === 22) {
+        col.numFmt = 'dd/mm/yyyy';
+      }
+    }
   }
 
   const buf = await wb.xlsx.writeBuffer();

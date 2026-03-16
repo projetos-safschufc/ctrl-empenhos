@@ -21,6 +21,8 @@ function parsePageSize(s: unknown, isExport = false): number {
   return Math.min(n, cap);
 }
 
+type SortField = 'master' | 'cobertura' | 'vigencia';
+
 export const controleEmpenhoController = {
   async getItens(req: Request, res: Response) {
     const codigo = req.query.codigo as string | undefined;
@@ -30,11 +32,19 @@ export const controleEmpenhoController = {
     const status = req.query.status as string | undefined;
     const comRegistro = req.query.comRegistro as string | undefined;
     const qtdeRegistrosRaw = req.query.qtdeRegistros as string | undefined;
+    const sortByRaw = req.query.sortBy as string | undefined;
+    const sortDirRaw = req.query.sortDir as string | undefined;
     const page = parsePage(req.query.page);
     const isExport = req.query.export === 'true';
     const pageSize = parsePageSize(req.query.pageSize, isExport);
 
-    const filters: CatalogoFilters & { status?: string; comRegistro?: boolean; qtdeRegistros?: 0 | 1 | 2 | 3 } = {};
+    const filters: CatalogoFilters & {
+      status?: string;
+      comRegistro?: boolean;
+      qtdeRegistros?: 0 | 1 | 2 | 3;
+      sortBy?: SortField;
+      sortDir?: 'asc' | 'desc';
+    } = {};
     if (codigo) filters.codigo = codigo;
     if (responsavel) filters.responsavel = responsavel;
     if (classificacao) filters.classificacao = classificacao;
@@ -43,6 +53,13 @@ export const controleEmpenhoController = {
     if (comRegistro !== undefined) filters.comRegistro = comRegistro === 'true';
     const qr = qtdeRegistrosRaw !== undefined && qtdeRegistrosRaw !== '' ? parseInt(qtdeRegistrosRaw, 10) : NaN;
     if (Number.isInteger(qr) && qr >= 0 && qr <= 3) filters.qtdeRegistros = qr as 0 | 1 | 2 | 3;
+
+    if (sortByRaw && (sortByRaw === 'master' || sortByRaw === 'cobertura' || sortByRaw === 'vigencia')) {
+      filters.sortBy = sortByRaw as SortField;
+    }
+    if (sortDirRaw === 'asc' || sortDirRaw === 'desc') {
+      filters.sortDir = sortDirRaw;
+    }
 
     try {
       const { itens, total, mesesConsumo } = await controleEmpenhoService.getItens(filters, page, pageSize);

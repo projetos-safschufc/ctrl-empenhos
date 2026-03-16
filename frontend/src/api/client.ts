@@ -291,6 +291,9 @@ export const controleEmpenhosApi = {
     comRegistro?: boolean;
     /** Filtro por quantidade exata de registros por material: 0 = sem registro, 1/2/3 = exatamente N registros. */
     qtdeRegistros?: 0 | 1 | 2 | 3;
+    /** Ordenação: master = MASTER/DESCRITIVO; cobertura = COBERTURA ESTOQUE; vigencia = VIGÊNCIA. */
+    sortBy?: 'master' | 'cobertura' | 'vigencia';
+    sortDir?: 'asc' | 'desc';
     page?: number;
     pageSize?: number;
     /** Quando true, backend aceita pageSize maior (até 5000) para exportação. */
@@ -304,6 +307,8 @@ export const controleEmpenhosApi = {
     if (params.status) search.set('status', params.status);
     if (params.comRegistro !== undefined) search.set('comRegistro', String(params.comRegistro));
     if (params.qtdeRegistros !== undefined) search.set('qtdeRegistros', String(params.qtdeRegistros));
+    if (params.sortBy) search.set('sortBy', params.sortBy);
+    if (params.sortDir) search.set('sortDir', params.sortDir);
     if (params.page) search.set('page', String(params.page));
     if (params.pageSize) search.set('pageSize', String(params.pageSize));
     if (params.export === true) search.set('export', 'true');
