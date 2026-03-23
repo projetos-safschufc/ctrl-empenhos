@@ -142,7 +142,7 @@ export function ControleEmpenhos() {
     sortDir,
     setSortBy,
     setSortDir,
-  } = useControleEmpenhos();
+    } = useControleEmpenhos();
 
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
@@ -226,6 +226,20 @@ export function ControleEmpenhos() {
   // Função para obter a classificação
   const getClassificacao = (item: any): string => {
     return item.classificacao ?? item.CLASSIFICACAO ?? '-';
+  };
+
+  // Coluna virtual COBERTURA = (ESTOQUE ALMOX. + QTDE A RECEBER) / MÉDIA 6 MESES
+  const formatCoberturaVirtual = (item: any): string => {
+    const estoqueAlmox = Number(item.estoqueAlmoxarifados ?? 0);
+    const qtdeAReceber = Number(item.saldoEmpenhos ?? 0);
+    const media6 = Number(item.mediaConsumo6Meses ?? 0);
+    if (!Number.isFinite(media6) || media6 <= 0) return '0,0';
+    const valor = (estoqueAlmox + qtdeAReceber) / media6;
+    if (!Number.isFinite(valor)) return '0,0';
+    return valor.toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
   };
 
   const handleSort = (field: 'master' | 'cobertura' | 'vigencia') => {
@@ -535,10 +549,11 @@ export function ControleEmpenhos() {
                   <ThQuebraLinha linha1="Estoque" linha2="virtual" isNumeric title="Estoque almox. + Saldo empenhos" />
                   <ThQuebraLinha
                     linha1={`Cobertura${renderSortIndicator('cobertura') ?? ''}`}
-                    linha2="estoque"
+                    linha2="est. físico"
                     onClick={() => handleSort('cobertura')}
                     cursor="pointer"
                   />
+                  <ThQuebraLinha linha1="Cobertura" linha2="físico+emp" isNumeric />
                   <ThQuebraLinha linha1="Pré-" linha2="Empenho" />
                   <Th>Registro</Th>
                   <Th cursor="pointer" onClick={() => handleSort('vigencia')}>
@@ -568,7 +583,7 @@ export function ControleEmpenhos() {
               <Tbody>
                 {loading && (
                   <Tr>
-                    <Td colSpan={32} textAlign="center" py={8}>
+                    <Td colSpan={33} textAlign="center" py={8}>
                       <Spinner size="lg" />
                       <Text mt={2}>Carregando dados...</Text>
                     </Td>
@@ -577,7 +592,7 @@ export function ControleEmpenhos() {
                 
                 {!loading && itens.length === 0 && (
                   <Tr>
-                    <Td colSpan={32} textAlign="center" py={8}>
+                    <Td colSpan={33} textAlign="center" py={8}>
                       <Text color="gray.500">Nenhum item encontrado</Text>
                       <Text fontSize="sm" color="gray.400" mt={1}>
                         Total: {total} | Página: {page}
@@ -612,7 +627,10 @@ export function ControleEmpenhos() {
                     estoqueVirtual: item.estoqueVirtual != null && Number.isFinite(Number(item.estoqueVirtual))
                       ? Number(item.estoqueVirtual)
                       : (Number(item.estoqueAlmoxarifados) || 0) + (Number(item.saldoEmpenhos) || 0),
-                    coberturaEstoque: item.coberturaEstoque ? Number(item.coberturaEstoque) : null,
+                    coberturaEstoque:
+                      Number(item.mediaConsumo6Meses) > 0
+                        ? Number(item.estoqueAlmoxarifados) / Number(item.mediaConsumo6Meses)
+                        : null,
                   };
                   
                   const colunasRenderizadas = renderizarColunasControle(dadosColunasRender);
@@ -687,6 +705,9 @@ export function ControleEmpenhos() {
                       {/* Colunas de consumo */}
                       {colunasRenderizadas}
                       
+                      {/* Coluna COBERTURA virtual */}
+                      <Td isNumeric>{formatCoberturaVirtual(item)}</Td>
+
                       {/* Coluna Pré-empenho */}
                       <ColunaPreEmpenhoCell numeroPreEmpenho={item.numeroPreEmpenho} />
                       

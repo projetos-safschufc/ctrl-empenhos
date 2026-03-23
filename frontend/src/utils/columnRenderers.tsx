@@ -145,9 +145,11 @@ export function ColunaQtdeUltimoConsumoCell({
 export function ColunaEstoqueCell({
   estoque,
   label = 'Estoque',
+  destaque = false,
 }: {
   estoque: number | null | undefined;
   label?: string;
+  destaque?: boolean;
 }): JSX.Element {
   const valor = Number(estoque) || 0;
   const texto = valor === 0 ? '-' : formatarIntThousands(valor);
@@ -161,7 +163,9 @@ export function ColunaEstoqueCell({
 
   return (
     <Td isNumeric bg={bg} title={`${label}: ${valor}`}>
-      {texto}
+      <Text as="span" fontWeight={destaque ? 'bold' : 'normal'}>
+        {texto}
+      </Text>
     </Td>
   );
 }
@@ -259,19 +263,20 @@ export function ColunaCoberturaCellFormatted({
 }): JSX.Element {
   const valor = Number(cobertura);
 
-  if (Number.isNaN(valor) || valor === null) {
-    // Se média consumo = 0, cobertura não calculável
-    const msg = mediaConsumo === 0 ? 'Sem consumo' : 'N/A';
+  if (!Number.isFinite(valor)) {
     return (
-      <Td style={{ textAlign: 'center' }} title={msg}>
+      <Td style={{ textAlign: 'center' }} title={mediaConsumo === 0 ? 'Sem consumo' : 'N/A'}>
         <Text fontSize="xs" color="gray.500">
-          —
+          0,0
         </Text>
       </Td>
     );
   }
 
-  const texto = formatarDecimal(valor, 1);
+  const texto = valor.toLocaleString('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   let bg = 'gray.50';
   let borderColor = 'gray.200';
@@ -293,7 +298,7 @@ export function ColunaCoberturaCellFormatted({
       borderLeft={`3px solid ${borderColor}`}
       title={`Cobertura: ${texto} dias`}
     >
-      <Text fontWeight="medium">{texto}</Text>
+      <Text fontWeight="bold">{texto}</Text>
     </Td>
   );
 }
@@ -360,6 +365,7 @@ export function renderizarColunasControle(dados: DadosColunasControleRender): JS
       key="estoqueAlmox"
       estoque={dados.estoqueAlmoxarifados}
       label="Estoque Almoxarifados"
+      destaque
     />
   );
 
