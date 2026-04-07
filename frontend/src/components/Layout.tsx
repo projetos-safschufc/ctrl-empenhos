@@ -69,7 +69,12 @@ export function Layout() {
       >
         <HStack justify="space-between" mb={6} px={2}>
           <Heading size="md">
-            Controle Empenhos
+          <img
+            src="/hubrasil-2.png"
+            alt="EBSERH"
+            className="h-10 w-auto"
+          />
+            Gestão de Estoque
           </Heading>
         </HStack>
         <Box

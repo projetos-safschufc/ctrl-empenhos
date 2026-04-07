@@ -56,12 +56,10 @@ const STICKY_COL_WIDTHS = {
   classificacao: 280,
 } as const;
 
-/** Posições left (px) para colunas sticky (RESP. CTRL após Classificação; checkbox no final) */
+/** Posições left (px) para colunas sticky à esquerda (apenas Master/Descritivo e Apres). */
 const STICKY_LEFT = {
   masterDescritivo: 0,
   apres: STICKY_COL_WIDTHS.masterDescritivo,
-  classificacao: STICKY_COL_WIDTHS.masterDescritivo + STICKY_COL_WIDTHS.apres,
-  responsavel: STICKY_COL_WIDTHS.masterDescritivo + STICKY_COL_WIDTHS.apres + STICKY_COL_WIDTHS.classificacao,
 } as const;
 
 /** Cor de fundo do cabeçalho da tabela Gestão de Estoque */
@@ -498,7 +496,6 @@ export function ControleEmpenhos() {
                     Apres
                   </Th>
                   <Th
-                    {...getStickyStyles('classificacao', true)}
                     w={`${STICKY_COL_WIDTHS.classificacao}px`}
                     minW={`${STICKY_COL_WIDTHS.classificacao}px`}
                     maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
@@ -507,7 +504,6 @@ export function ControleEmpenhos() {
                     Classificação
                   </Th>
                   <Th
-                    {...getStickyStyles('responsavel', true)}
                     w={`${STICKY_COL_WIDTHS.responsavel}px`}
                     minW={`${STICKY_COL_WIDTHS.responsavel}px`}
                     maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
@@ -664,7 +660,6 @@ export function ControleEmpenhos() {
                       
                       {/* Coluna Classificação */}
                       <Td
-                        {...getStickyStyles('classificacao')}
                         bg={getCellBg(isSelected)}
                         w={`${STICKY_COL_WIDTHS.classificacao}px`}
                         minW={`${STICKY_COL_WIDTHS.classificacao}px`}
@@ -679,7 +674,6 @@ export function ControleEmpenhos() {
                       
                       {/* Coluna RESP. CTRL (logo após Classificação) */}
                       <Td
-                        {...getStickyStyles('responsavel')}
                         bg={getCellBg(isSelected)}
                         w={`${STICKY_COL_WIDTHS.responsavel}px`}
                         minW={`${STICKY_COL_WIDTHS.responsavel}px`}

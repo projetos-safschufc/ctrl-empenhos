@@ -13,8 +13,36 @@ Node.js + TypeScript + Express + Prisma. Bancos: SAFS (Prisma) e DW (pg, views).
 
 - `npm run dev` – desenvolvimento
 - `npm run build` e `npm start` – produção
+- `npm run start:prod` – build + start em sequência
 - `npm run prisma:studio` – interface do Prisma
 - `npm run seed` – popular perfis e usuário admin
+
+## Execução com PM2 (produção)
+
+1. Build da aplicação:
+
+   - `npm run build`
+
+2. Subir com PM2:
+
+   - `npm run pm2:start`
+
+3. Comandos úteis:
+
+   - `npm run pm2:status`
+   - `npm run pm2:logs`
+   - `npm run pm2:restart`
+   - `npm run pm2:stop`
+   - `npm run pm2:delete`
+
+4. Persistir processos após reboot:
+
+   - `npm run pm2:save`
+   - `pm2 startup` (executar o comando retornado pelo PM2 no terminal)
+
+Arquivo de configuração do PM2:
+
+- `ecosystem.config.cjs`
 
 ## Documentação da API
 
