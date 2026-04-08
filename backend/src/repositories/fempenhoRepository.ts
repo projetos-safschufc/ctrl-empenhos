@@ -90,6 +90,8 @@ export async function getPreEmpenhoPorMasters(masters: string[]): Promise<Map<st
 
 const NR_COL = process.env.DW_FEMPNUM_REGISTRO_COLUMN || 'numero_do_registro';
 const NR_COL_REF = quoteId(NR_COL);
+const PROCESSO_SEI_COL = process.env.DW_FEMPPROC_COLUMN || 'processo_sei';
+const PROCESSO_SEI_COL_REF = quoteId(PROCESSO_SEI_COL);
 
 /**
  * Pré-empenho (código_pre_empenho) por (material, numero_do_registro).
@@ -173,6 +175,102 @@ export async function getPreEmpenhoPorMastersERegistros(
     }
   }
   return result;
+}
+
+type ProcessoSeiRow = {
+  master_code: string;
+  numero_registro: string | null;
+  processo_sei: string | null;
+};
+
+async function queryProcessoSeiPorPairs(
+  sourceRef: string,
+  pairs: { master: string; numeroRegistro: string | null }[]
+): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  const comRegistro = pairs.filter((p) => p.numeroRegistro != null && String(p.numeroRegistro).trim() !== '');
+  if (comRegistro.length === 0) return result;
+
+  const varianteToKey = new Map<string, string>();
+  const allParams: string[] = [];
+  const allRows: string[] = [];
+  const seen = new Set<string>();
+  let pi = 0;
+
+  for (const p of comRegistro) {
+    const variantes = variantesCodigoMaterial(p.master);
+    const nr = String(p.numeroRegistro ?? '').trim();
+    const key = `${p.master}|${nr}`;
+    for (const v of variantes) {
+      varianteToKey.set(`${v}|${nr}`, key);
+      const vk = `${v}|${nr}`;
+      if (seen.has(vk)) continue;
+      seen.add(vk);
+      pi++;
+      allParams.push(v, nr);
+      allRows.push(`($${pi * 2 - 1}::text, $${pi * 2}::text)`);
+    }
+  }
+
+  if (allParams.length === 0) return result;
+
+  const pool = getDwPool();
+  const materialPrefixExpr = `TRIM(SPLIT_PART(f.${FEM_MATERIAL_COL_REF}::text, '-', 1))`;
+  const valuesClause = allRows.join(', ');
+  const query = `
+    SELECT DISTINCT ON (master_code, numero_registro)
+      ${materialPrefixExpr} AS master_code,
+      f.${NR_COL_REF}::text AS numero_registro,
+      f.${PROCESSO_SEI_COL_REF}::text AS processo_sei
+    FROM ${sourceRef} f
+    WHERE (${materialPrefixExpr}, COALESCE(f.${NR_COL_REF}::text, '')) IN (VALUES ${valuesClause})
+    ORDER BY master_code, numero_registro
+  `;
+
+  const res = await pool.query(query, allParams);
+  for (const r of res.rows as ProcessoSeiRow[]) {
+    const masterCode = String(r.master_code ?? '').trim();
+    const nr = r.numero_registro != null ? String(r.numero_registro).trim() : '';
+    const key = varianteToKey.get(`${masterCode}|${nr}`);
+    if (!key) continue;
+    result.set(key, r.processo_sei != null ? String(r.processo_sei) : null);
+  }
+
+  for (const p of comRegistro) {
+    const key = `${p.master}|${String(p.numeroRegistro ?? '').trim()}`;
+    if (!result.has(key)) result.set(key, null);
+  }
+
+  return result;
+}
+
+/**
+ * Processo SEI por (material, numero_do_registro), com prioridade na view e fallback para tabela SAFS_fEmpenho.
+ * Chave no retorno: "master|numeroRegistro".
+ */
+export async function getProcessoSeiPorMastersERegistros(
+  pairs: { master: string; numeroRegistro: string | null }[]
+): Promise<Map<string, string | null>> {
+  if (pairs.length === 0) return new Map();
+
+  const schema = getDwSchema();
+  const viewRef = `${schema}v_safs_fempenho`;
+  const tableRef = `${schema}"SAFS_fEmpenho"`;
+
+  try {
+    return await queryProcessoSeiPorPairs(viewRef, pairs);
+  } catch {
+    try {
+      return await queryProcessoSeiPorPairs(tableRef, pairs);
+    } catch {
+      const fallback = new Map<string, string | null>();
+      for (const p of pairs) {
+        if (!p.numeroRegistro?.trim()) continue;
+        fallback.set(`${p.master}|${String(p.numeroRegistro).trim()}`, null);
+      }
+      return fallback;
+    }
+  }
 }
 
 /**

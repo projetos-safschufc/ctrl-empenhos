@@ -232,7 +232,9 @@ export function useControleEmpenhos() {
 
   const aplicarFiltros = useCallback(() => {
     setPage(1);
-  }, []);
+    // Garante recarga mesmo quando já estamos na página 1
+    loadItens(true);
+  }, [loadItens]);
 
   const atualizarTudo = useCallback(() => {
     invalidateControleEmpenhos();
@@ -332,14 +334,23 @@ export function useControleEmpenhos() {
       const dir = sortDir === 'desc' ? -1 : 1;
 
       if (sortBy === 'cobertura') {
-        const va = a.coberturaEstoque;
-        const vb = b.coberturaEstoque;
-        const aNull = va == null;
-        const bNull = vb == null;
+        // Ordenar pela mesma regra da coluna exibida em tela:
+        // cobertura física = estoqueAlmoxarifados / mediaConsumo6Meses
+        const calcCoberturaFisica = (item: ItemControleEmpenho): number => {
+          const estoque = Number(item.estoqueAlmoxarifados ?? 0);
+          const media = Number(item.mediaConsumo6Meses ?? 0);
+          if (!Number.isFinite(estoque) || !Number.isFinite(media) || media <= 0) return Number.NaN;
+          const v = estoque / media;
+          return Number.isFinite(v) ? v : Number.NaN;
+        };
+        const va = calcCoberturaFisica(a);
+        const vb = calcCoberturaFisica(b);
+        const aNull = !Number.isFinite(va);
+        const bNull = !Number.isFinite(vb);
         if (aNull && bNull) return 0;
         if (aNull) return 1; // nulos sempre no final
         if (bNull) return -1;
-        return dir * ((va as number) - (vb as number));
+        return dir * (va - vb);
       }
 
       if (sortBy === 'vigencia') {

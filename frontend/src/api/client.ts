@@ -123,6 +123,7 @@ export interface ItemControleEmpenho {
   /** Estoque virtual = estoque almox. + saldo empenhos */
   estoqueVirtual: number;
   numeroPreEmpenho: string | null;
+  processoSeiEmp: string | null;
   coberturaEstoque: number | null;
   registroMaster: string | null;
   vigenciaRegistro: string | null;

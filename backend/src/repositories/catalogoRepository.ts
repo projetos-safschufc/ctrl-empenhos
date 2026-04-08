@@ -13,7 +13,13 @@ export const catalogoRepository = {
     const where: Record<string, unknown> = {};
 
     if (filters.codigo?.trim()) {
-      where.master = { contains: filters.codigo.trim(), mode: 'insensitive' };
+      const termo = filters.codigo.trim();
+      where.OR = [
+        { master: { contains: termo, mode: 'insensitive' } },
+        { descricao: { contains: termo, mode: 'insensitive' } },
+        { descricao_mat: { contains: termo, mode: 'insensitive' } },
+        { servAquisicao: { contains: termo, mode: 'insensitive' } },
+      ];
     }
     if (filters.responsavel?.trim()) {
       where.respControle = filters.responsavel.trim();
@@ -44,7 +50,13 @@ export const catalogoRepository = {
     const where: Record<string, unknown> = {};
 
     if (filters.codigo?.trim()) {
-      where.master = { contains: filters.codigo.trim(), mode: 'insensitive' };
+      const termo = filters.codigo.trim();
+      where.OR = [
+        { master: { contains: termo, mode: 'insensitive' } },
+        { descricao: { contains: termo, mode: 'insensitive' } },
+        { descricao_mat: { contains: termo, mode: 'insensitive' } },
+        { servAquisicao: { contains: termo, mode: 'insensitive' } },
+      ];
     }
     if (filters.responsavel?.trim()) {
       where.respControle = filters.responsavel.trim();
@@ -77,10 +89,11 @@ export const catalogoRepository = {
     // Se não encontrou, busca por descritivo (primeiro resultado)
     return prisma.safsCatalogo.findFirst({
       where: {
-        descricao: {
-          contains: termoTrim,
-          mode: 'insensitive',
-        },
+        OR: [
+          { descricao: { contains: termoTrim, mode: 'insensitive' } },
+          { descricao_mat: { contains: termoTrim, mode: 'insensitive' } },
+          { servAquisicao: { contains: termoTrim, mode: 'insensitive' } },
+        ],
       },
       orderBy: { master: 'asc' },
     });

@@ -8,6 +8,7 @@ import fs from 'fs';
 import routes from './routes';
 import { sendError, ErrorCode } from './utils/errorResponse';
 import { getCorsOptions } from './config/cors';
+import { prisma } from './utils/prisma';
 
 dotenv.config();
 
@@ -76,4 +77,46 @@ function startServer(port: number, host: string): void {
   });
 }
 
-startServer(PORT, HOST);
+async function disconnectPrisma(): Promise<void> {
+  try {
+    await prisma.$disconnect();
+  } catch {
+    // ignorar: pool já pode estar encerrado pelo host (ex.: 10054)
+  }
+}
+
+/** Encerra o pool antes do processo morrer — reduz ruído 10054 em hot-reload (ts-node-dev) e desligamentos. */
+function registerGracefulShutdown(): void {
+  const run = () => {
+    void disconnectPrisma().finally(() => process.exit(0));
+  };
+  process.once('SIGINT', run);
+  process.once('SIGTERM', run);
+  // Nodemon / alguns watchers reiniciam com SIGUSR2 (Unix); Windows pode não emitir.
+  process.once('SIGUSR2', () => {
+    void disconnectPrisma().finally(() => {
+      try {
+        process.kill(process.pid, 'SIGUSR2');
+      } catch {
+        process.exit(0);
+      }
+    });
+  });
+}
+
+async function bootstrap(): Promise<void> {
+  registerGracefulShutdown();
+  if (process.env.PRISMA_SKIP_CONNECT_ON_BOOT !== 'true') {
+    try {
+      await prisma.$connect();
+    } catch (err) {
+      console.warn(
+        '[Prisma] Conexão inicial ao PostgreSQL falhou; o servidor subirá mesmo assim. Próximas requisições ao DB podem falhar até a rede/banco normalizar.',
+        err
+      );
+    }
+  }
+  startServer(PORT, HOST);
+}
+
+void bootstrap();

@@ -10,6 +10,7 @@ import {
   RegistroConsumoEstoque,
 } from '../repositories/consumoEstoqueRepository';
 import { getNumeroPreEmpenhoPorMastersERegistros } from '../repositories/empenhoRepository';
+import { getProcessoSeiPorMastersERegistros } from '../repositories/fempenhoRepository';
 import { getEstoqueGeralPorMasters } from '../repositories/estoqueRepository';
 import { histCtrlEmpenhoRepository } from '../repositories/histCtrlEmpenhoRepository';
 import { memoryCache, CacheKeys, CacheTTL } from '../utils/memoryCache';
@@ -53,6 +54,7 @@ export interface ItemControleEmpenho {
   /** Estoque virtual = estoque almoxarifados + saldo empenhos */
   estoqueVirtual: number;
   numeroPreEmpenho: string | null;
+  processoSeiEmp: string | null;
   coberturaEstoque: number | null;
   registroMaster: string | null;
   vigenciaRegistro: string | null;
@@ -104,6 +106,7 @@ async function buildRowsForCatalogBatch(
   let ultimoConsumoPorMaster: Map<string, { mesano: number; qtde: number } | null>;
   let totaisPorMaster: Map<string, { estoqueAlmoxarifados: number; saldoEmpenhos: number }>;
   let preEmpenhoPorMasterERegistro: Map<string, string | null>;
+  let processoSeiPorMasterERegistro: Map<string, string | null>;
   let registrosPorMaster: Map<string, RegistroConsumoEstoque[]>;
   let registrosExibirPorMaster: Map<string, RegistroConsumoEstoque[]>;
   let estoqueGeralPorMaster: Map<string, number>;
@@ -172,6 +175,7 @@ async function buildRowsForCatalogBatch(
       else for (const reg of registros) pairs.push({ master: masterCode, numeroRegistro: reg.numero_registro ?? null });
     }
     preEmpenhoPorMasterERegistro = await getNumeroPreEmpenhoPorMastersERegistros(pairs);
+    processoSeiPorMasterERegistro = await getProcessoSeiPorMastersERegistros(pairs);
   } catch (e) {
     console.warn('[controle-empenhos] buildRowsForCatalogBatch falhou:', (e as Error).message);
     codigosPadronizados = new Map();
@@ -179,6 +183,7 @@ async function buildRowsForCatalogBatch(
     ultimoConsumoPorMaster = new Map();
     totaisPorMaster = new Map();
     preEmpenhoPorMasterERegistro = new Map();
+    processoSeiPorMasterERegistro = new Map();
     registrosPorMaster = new Map();
     registrosExibirPorMaster = new Map();
     estoqueGeralPorMaster = new Map();
@@ -234,6 +239,7 @@ async function buildRowsForCatalogBatch(
       saldoEmpenhos: validarEstoque(totais.saldoEmpenhos),
       estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos),
       numeroPreEmpenho: null as string | null,
+      processoSeiEmp: null as string | null,
       coberturaEstoque: cobertura,
       classificacaoXYZ: cat.xyz ?? null,
       comRegistro,
@@ -264,6 +270,7 @@ async function buildRowsForCatalogBatch(
         const reg = registros[idx];
         const nr = reg.numero_registro ?? '';
         const numeroPreEmpenho = preEmpenhoPorMasterERegistro.get(`${cat.master}|${nr}`) ?? null;
+        const processoSeiEmp = processoSeiPorMasterERegistro.get(`${cat.master}|${nr}`) ?? null;
         const statusInput = { estoqueAlmoxarifados: validarEstoque(totais.estoqueAlmoxarifados), estoqueGeral: validarEstoque(estoqueGeral), saldoEmpenhos: validarEstoque(totais.saldoEmpenhos), estoqueVirtual: validarEstoque(totais.estoqueAlmoxarifados) + validarEstoque(totais.saldoEmpenhos), coberturaEstoque: cobertura, mediaConsumo6Meses, consumoMesAtual, consumos6Meses, mesUltimoConsumo: ultimoConsumoExcl?.mesano ?? null, vigenciaRegistro: reg.vigencia ?? null, saldoRegistro: reg.saldo_registro ?? null, comRegistro: true, numeroPreEmpenho };
         const { status: s, statusDetails: sd } = calcularStatusComDetalhes(statusInput);
         if (filters.status && filters.status !== s) continue;
@@ -273,6 +280,7 @@ async function buildRowsForCatalogBatch(
           status: s,
           statusDetails: sd,
           numeroPreEmpenho,
+          processoSeiEmp,
           rowKey: `${cat.id}-${nr}-${idx}`,
           registroMaster: reg.numero_registro ?? null,
           vigenciaRegistro: reg.vigencia ?? null,

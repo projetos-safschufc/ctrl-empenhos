@@ -60,6 +60,18 @@ function appendPoolParamsIfMissing(url: string): string {
 }
 
 /**
+ * Keepalive TCP (libpq) para detectar conexões mortas mais cedo e reduzir resets 10054
+ * quando o servidor/firewall encerra sockets ociosos. Desative com DB_TCP_KEEPALIVE=0.
+ */
+function appendTcpKeepaliveIfMissing(url: string): string {
+  if (process.env.DB_TCP_KEEPALIVE === '0') return url;
+  const u = url.trim();
+  if (u.includes('keepalives=')) return u;
+  const sep = u.includes('?') ? '&' : '?';
+  return `${u}${sep}keepalives=1&keepalives_idle=60&keepalives_interval=10&keepalives_count=3`;
+}
+
+/**
  * Monta a URL de conexão PostgreSQL para o Prisma.
  * Usa DATABASE_URL se definido; senão monta a partir de DB_* (senha normalizada e codificada).
  * Em produção, definir DATABASE_URL ou todas as variáveis DB_HOST, DB_PORT, DB_DATABASE, DB_USER e DB_PASSWORD.
@@ -68,7 +80,7 @@ function appendPoolParamsIfMissing(url: string): string {
 export function getDatabaseUrl(): string {
   const fromEnv = process.env.DATABASE_URL?.trim();
   if (fromEnv) {
-    return appendPoolParamsIfMissing(fromEnv);
+    return appendTcpKeepaliveIfMissing(appendPoolParamsIfMissing(fromEnv));
   }
 
   const host = (process.env.DB_HOST ?? 'localhost').trim();
@@ -78,5 +90,5 @@ export function getDatabaseUrl(): string {
   const password = normalizePassword(process.env.DB_PASSWORD ?? '');
   const encodedPassword = encodePasswordForUrl(password);
   const url = `postgresql://${user}:${encodedPassword}@${host}:${port}/${database}`;
-  return appendPoolParamsIfMissing(url);
+  return appendTcpKeepaliveIfMissing(appendPoolParamsIfMissing(url));
 }

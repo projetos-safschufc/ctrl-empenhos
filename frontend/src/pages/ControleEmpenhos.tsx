@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   Heading,
@@ -20,6 +20,7 @@ import {
   TableContainer,
   Spinner,
   Flex,
+  VStack,
   useToast,
 } from '@chakra-ui/react';
 import { useControleEmpenhos } from '../hooks/useControleEmpenhos';
@@ -64,6 +65,50 @@ const STICKY_LEFT = {
 
 /** Cor de fundo do cabeçalho da tabela Gestão de Estoque */
 const TABLE_HEADER_BG = '#8BC547';
+const COLUMN_VISIBILITY_STORAGE_KEY = 'controleEmpenhos.visibleColumns.v1';
+
+type SelectableColumnId =
+  | 'classificacao'
+  | 'responsavel'
+  | 'consumoGrupo'
+  | 'coberturaVirtual'
+  | 'numeroPreEmpenho'
+  | 'processoSeiEmp'
+  | 'registro'
+  | 'vigencia'
+  | 'saldoRegistro'
+  | 'valorUnitRegistro'
+  | 'qtdeEmbalagem'
+  | 'classificacaoXYZ'
+  | 'tipoArmazenamento'
+  | 'capacidadeEstocagem'
+  | 'status'
+  | 'observacao';
+
+const SELECTABLE_COLUMNS: ReadonlyArray<{ id: SelectableColumnId; label: string; defaultVisible: boolean }> = [
+  { id: 'classificacao', label: 'Classificação', defaultVisible: true },
+  { id: 'responsavel', label: 'RESP. CTRL', defaultVisible: true },
+  { id: 'consumoGrupo', label: 'Consumos e coberturas (grupo)', defaultVisible: true },
+  { id: 'coberturaVirtual', label: 'Cobertura físico+emp', defaultVisible: true },
+  { id: 'numeroPreEmpenho', label: 'Pré-Empenho', defaultVisible: true },
+  { id: 'processoSeiEmp', label: 'PROC. SEI. EMP', defaultVisible: true },
+  { id: 'registro', label: 'Registro', defaultVisible: true },
+  { id: 'vigencia', label: 'Vigência', defaultVisible: true },
+  { id: 'saldoRegistro', label: 'Saldo registro', defaultVisible: true },
+  { id: 'valorUnitRegistro', label: 'Valor unit. registro', defaultVisible: true },
+  { id: 'qtdeEmbalagem', label: 'Qtde/emb.', defaultVisible: true },
+  { id: 'classificacaoXYZ', label: 'Class. XYZ', defaultVisible: true },
+  { id: 'tipoArmazenamento', label: 'Tipo armazen.', defaultVisible: true },
+  { id: 'capacidadeEstocagem', label: 'Cap. estocagem', defaultVisible: true },
+  { id: 'status', label: 'Status', defaultVisible: true },
+  { id: 'observacao', label: 'Observação', defaultVisible: true },
+];
+
+function getDefaultVisibleColumns(): Record<SelectableColumnId, boolean> {
+  const base = {} as Record<SelectableColumnId, boolean>;
+  for (const c of SELECTABLE_COLUMNS) base[c.id] = c.defaultVisible;
+  return base;
+}
 
 /** Z-index hierarchy for sticky elements */
 const Z_INDEX = {
@@ -144,6 +189,51 @@ export function ControleEmpenhos() {
 
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Record<SelectableColumnId, boolean>>(() => {
+    const defaults = getDefaultVisibleColumns();
+    if (typeof window === 'undefined') return defaults;
+    try {
+      const raw = window.localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY);
+      if (!raw) return defaults;
+      const parsed = JSON.parse(raw) as Partial<Record<SelectableColumnId, boolean>>;
+      return { ...defaults, ...parsed };
+    } catch {
+      return defaults;
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(COLUMN_VISIBILITY_STORAGE_KEY, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  const isColVisible = useCallback(
+    (id: SelectableColumnId) => visibleColumns[id] !== false,
+    [visibleColumns]
+  );
+
+  const dynamicColSpan = useMemo(() => {
+    const baseFixed = 3; // master/apres + checkbox sticky
+    let totalCols = baseFixed;
+    if (isColVisible('classificacao')) totalCols++;
+    if (isColVisible('responsavel')) totalCols++;
+    if (isColVisible('consumoGrupo')) totalCols += 15;
+    if (isColVisible('coberturaVirtual')) totalCols++;
+    if (isColVisible('numeroPreEmpenho')) totalCols++;
+    if (isColVisible('processoSeiEmp')) totalCols++;
+    if (isColVisible('registro')) totalCols++;
+    if (isColVisible('vigencia')) totalCols++;
+    if (isColVisible('saldoRegistro')) totalCols++;
+    if (isColVisible('valorUnitRegistro')) totalCols++;
+    if (isColVisible('qtdeEmbalagem')) totalCols++;
+    if (isColVisible('classificacaoXYZ')) totalCols++;
+    if (isColVisible('tipoArmazenamento')) totalCols++;
+    if (isColVisible('capacidadeEstocagem')) totalCols++;
+    if (isColVisible('status')) totalCols++;
+    if (isColVisible('observacao')) totalCols++;
+    return totalCols;
+  }, [isColVisible]);
 
   const handleExportExcel = useCallback(async () => {
     if (total === 0) return;
@@ -334,9 +424,9 @@ export function ControleEmpenhos() {
           <Heading size="sm" mb={3} color="brand.darkGreen">Filtros</Heading>
           <HStack flexWrap="wrap" gap={3} mb={3}>
             <Input
-              placeholder="Código"
+              placeholder="Código ou Descritivo"
               size="sm"
-              w="120px"
+              w="160px"
               value={filtroCodigo}
               onChange={(e) => setFiltroCodigo(e.target.value)}
             />
@@ -425,6 +515,47 @@ export function ControleEmpenhos() {
             >
               Atualizar
             </Button>
+            <Box position="relative">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowColumnSelector((v) => !v)}
+              >
+                Colunas
+              </Button>
+              {showColumnSelector && (
+                <Box
+                  position="absolute"
+                  zIndex={30}
+                  mt={2}
+                  p={3}
+                  bg="white"
+                  borderWidth="1px"
+                  borderColor="gray.200"
+                  borderRadius="md"
+                  boxShadow="md"
+                  minW="280px"
+                >
+                  <VStack align="start" spacing={2} maxH="280px" overflowY="auto">
+                    {SELECTABLE_COLUMNS.map((col) => (
+                      <Checkbox
+                        key={col.id}
+                        size="sm"
+                        isChecked={isColVisible(col.id)}
+                        onChange={(e) =>
+                          setVisibleColumns((prev) => ({
+                            ...prev,
+                            [col.id]: e.target.checked,
+                          }))
+                        }
+                      >
+                        {col.label}
+                      </Checkbox>
+                    ))}
+                  </VStack>
+                </Box>
+              )}
+            </Box>
             {(() => {
               const msg =
                 filtroQtdeRegistros === ''
@@ -468,8 +599,12 @@ export function ControleEmpenhos() {
               <colgroup>
                 <col style={{ width: `${STICKY_COL_WIDTHS.masterDescritivo}px`, minWidth: `${STICKY_COL_WIDTHS.masterDescritivo}px` }} />
                 <col style={{ width: `${STICKY_COL_WIDTHS.apres}px`, minWidth: `${STICKY_COL_WIDTHS.apres}px` }} />
-                <col style={{ width: `${STICKY_COL_WIDTHS.classificacao}px`, minWidth: `${STICKY_COL_WIDTHS.classificacao}px` }} />
-                <col style={{ width: `${STICKY_COL_WIDTHS.responsavel}px`, minWidth: `${STICKY_COL_WIDTHS.responsavel}px` }} />
+                {isColVisible('classificacao') && (
+                  <col style={{ width: `${STICKY_COL_WIDTHS.classificacao}px`, minWidth: `${STICKY_COL_WIDTHS.classificacao}px` }} />
+                )}
+                {isColVisible('responsavel') && (
+                  <col style={{ width: `${STICKY_COL_WIDTHS.responsavel}px`, minWidth: `${STICKY_COL_WIDTHS.responsavel}px` }} />
+                )}
               </colgroup>
               
               <Thead sx={{ '& th': { bg: TABLE_HEADER_BG, color: 'white' } }}>
@@ -495,26 +630,30 @@ export function ControleEmpenhos() {
                   >
                     Apres
                   </Th>
-                  <Th
-                    w={`${STICKY_COL_WIDTHS.classificacao}px`}
-                    minW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                    maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                    textAlign="left"
-                  >
-                    Classificação
-                  </Th>
-                  <Th
-                    w={`${STICKY_COL_WIDTHS.responsavel}px`}
-                    minW={`${STICKY_COL_WIDTHS.responsavel}px`}
-                    maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
-                    textAlign="left"
-                    title="Responsável pelo controle"
-                  >
-                    RESP. CTRL
-                  </Th>
+                  {isColVisible('classificacao') && (
+                    <Th
+                      w={`${STICKY_COL_WIDTHS.classificacao}px`}
+                      minW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                      maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                      textAlign="left"
+                    >
+                      Classificação
+                    </Th>
+                  )}
+                  {isColVisible('responsavel') && (
+                    <Th
+                      w={`${STICKY_COL_WIDTHS.responsavel}px`}
+                      minW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                      maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                      textAlign="left"
+                      title="Responsável pelo controle"
+                    >
+                      RESP. CTRL
+                    </Th>
+                  )}
 
                   {/* Colunas de consumo mensal */}
-                  {consumoHeaders.map((h, i) => {
+                  {isColVisible('consumoGrupo') && consumoHeaders.map((h, i) => {
                     const isLast = i === consumoHeaders.length - 1;
                     const match = isLast && h.match(/^Mês Atual \((.+)\)$/);
                     if (match) {
@@ -536,33 +675,40 @@ export function ControleEmpenhos() {
                   })}
                   
                   {/* Demais colunas do cabeçalho */}
-                  <ThQuebraLinha linha1="Média" linha2="6 meses" isNumeric />
-                  <ThQuebraLinha linha1="Mês últ" linha2="consumo" />
-                  <ThQuebraLinha linha1="Qtde últ" linha2="consumo" isNumeric />
-                  <ThQuebraLinha linha1="Estoque" linha2="almox." isNumeric />
-                  <ThQuebraLinha linha1="Outros" linha2="Estoques" isNumeric />
-                  <ThQuebraLinha linha1="Qtde a" linha2="Receber" isNumeric />
-                  <ThQuebraLinha linha1="Estoque" linha2="virtual" isNumeric title="Estoque almox. + Saldo empenhos" />
-                  <ThQuebraLinha
-                    linha1={`Cobertura${renderSortIndicator('cobertura') ?? ''}`}
-                    linha2="est. físico"
-                    onClick={() => handleSort('cobertura')}
-                    cursor="pointer"
-                  />
-                  <ThQuebraLinha linha1="Cobertura" linha2="físico+emp" isNumeric />
-                  <ThQuebraLinha linha1="Pré-" linha2="Empenho" />
-                  <Th>Registro</Th>
-                  <Th cursor="pointer" onClick={() => handleSort('vigencia')}>
-                    Vigência{renderSortIndicator('vigencia')}
-                  </Th>
-                  <ThQuebraLinha linha1="Saldo" linha2="registro" isNumeric />
-                  <ThQuebraLinha linha1="Valor unit." linha2="registro" isNumeric />
-                  <Th>Qtde/emb.</Th>
-                  <Th>Class. XYZ</Th>
-                  <Th>Tipo armazen.</Th>
-                  <Th>Cap. estocagem</Th>
-                  <Th>Status</Th>
-                  <Th>Observação</Th>
+                  {isColVisible('consumoGrupo') && (
+                    <>
+                      <ThQuebraLinha linha1="Média" linha2="6 meses" isNumeric />
+                      <ThQuebraLinha linha1="Mês últ" linha2="consumo" />
+                      <ThQuebraLinha linha1="Qtde últ" linha2="consumo" isNumeric />
+                      <ThQuebraLinha linha1="Estoque" linha2="almox." isNumeric />
+                      <ThQuebraLinha linha1="Outros" linha2="Estoques" isNumeric />
+                      <ThQuebraLinha linha1="Qtde a" linha2="Receber" isNumeric />
+                      <ThQuebraLinha linha1="Estoque" linha2="virtual" isNumeric title="Estoque almox. + Saldo empenhos" />
+                      <ThQuebraLinha
+                        linha1={`Cobertura${renderSortIndicator('cobertura') ?? ''}`}
+                        linha2="est. físico"
+                        onClick={() => handleSort('cobertura')}
+                        cursor="pointer"
+                      />
+                    </>
+                  )}
+                  {isColVisible('coberturaVirtual') && <ThQuebraLinha linha1="Cobertura" linha2="físico+emp" isNumeric />}
+                  {isColVisible('numeroPreEmpenho') && <ThQuebraLinha linha1="Pré-" linha2="Empenho" />}
+                  {isColVisible('processoSeiEmp') && <ThQuebraLinha linha1="PROC. SEI." linha2="EMP" />}
+                  {isColVisible('registro') && <Th>Registro</Th>}
+                  {isColVisible('vigencia') && (
+                    <Th cursor="pointer" onClick={() => handleSort('vigencia')}>
+                      Vigência{renderSortIndicator('vigencia')}
+                    </Th>
+                  )}
+                  {isColVisible('saldoRegistro') && <ThQuebraLinha linha1="Saldo" linha2="registro" isNumeric />}
+                  {isColVisible('valorUnitRegistro') && <ThQuebraLinha linha1="Valor unit." linha2="registro" isNumeric />}
+                  {isColVisible('qtdeEmbalagem') && <Th>Qtde/emb.</Th>}
+                  {isColVisible('classificacaoXYZ') && <Th>Class. XYZ</Th>}
+                  {isColVisible('tipoArmazenamento') && <Th>Tipo armazen.</Th>}
+                  {isColVisible('capacidadeEstocagem') && <Th>Cap. estocagem</Th>}
+                  {isColVisible('status') && <Th>Status</Th>}
+                  {isColVisible('observacao') && <Th>Observação</Th>}
                   {/* Coluna checkbox fixa à direita */}
                   <Th
                     {...getStickyRightStyles(true)}
@@ -579,7 +725,7 @@ export function ControleEmpenhos() {
               <Tbody>
                 {loading && (
                   <Tr>
-                    <Td colSpan={33} textAlign="center" py={8}>
+                    <Td colSpan={dynamicColSpan} textAlign="center" py={8}>
                       <Spinner size="lg" />
                       <Text mt={2}>Carregando dados...</Text>
                     </Td>
@@ -588,7 +734,7 @@ export function ControleEmpenhos() {
                 
                 {!loading && itens.length === 0 && (
                   <Tr>
-                    <Td colSpan={33} textAlign="center" py={8}>
+                    <Td colSpan={dynamicColSpan} textAlign="center" py={8}>
                       <Text color="gray.500">Nenhum item encontrado</Text>
                       <Text fontSize="sm" color="gray.400" mt={1}>
                         Total: {total} | Página: {page}
@@ -659,63 +805,70 @@ export function ControleEmpenhos() {
                       </Td>
                       
                       {/* Coluna Classificação */}
-                      <Td
-                        bg={getCellBg(isSelected)}
-                        w={`${STICKY_COL_WIDTHS.classificacao}px`}
-                        minW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                        maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
-                        whiteSpace="normal"
-                        wordBreak="break-word"
-                        lineHeight="tight"
-                        textAlign="left"
-                      >
-                        {classificacaoDisplay}
-                      </Td>
+                      {isColVisible('classificacao') && (
+                        <Td
+                          bg={getCellBg(isSelected)}
+                          w={`${STICKY_COL_WIDTHS.classificacao}px`}
+                          minW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                          maxW={`${STICKY_COL_WIDTHS.classificacao}px`}
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          lineHeight="tight"
+                          textAlign="left"
+                        >
+                          {classificacaoDisplay}
+                        </Td>
+                      )}
                       
                       {/* Coluna RESP. CTRL (logo após Classificação) */}
-                      <Td
-                        bg={getCellBg(isSelected)}
-                        w={`${STICKY_COL_WIDTHS.responsavel}px`}
-                        minW={`${STICKY_COL_WIDTHS.responsavel}px`}
-                        maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
-                        whiteSpace="normal"
-                        wordBreak="break-word"
-                        lineHeight="tight"
-                        textAlign="left"
-                        title={responsavelDisplay !== '-' ? responsavelDisplay : undefined}
-                      >
-                        {isSelected ? (
-                          <Input
-                            size="xs"
-                            value={edits.responsavel ?? responsavelDisplay}
-                            onChange={(e) => updateEdit(item.rowKey, 'responsavel', e.target.value)}
-                            placeholder="Responsável"
-                          />
-                        ) : (
-                          responsavelDisplay
-                        )}
-                      </Td>
+                      {isColVisible('responsavel') && (
+                        <Td
+                          bg={getCellBg(isSelected)}
+                          w={`${STICKY_COL_WIDTHS.responsavel}px`}
+                          minW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                          maxW={`${STICKY_COL_WIDTHS.responsavel}px`}
+                          whiteSpace="normal"
+                          wordBreak="break-word"
+                          lineHeight="tight"
+                          textAlign="left"
+                          title={responsavelDisplay !== '-' ? responsavelDisplay : undefined}
+                        >
+                          {isSelected ? (
+                            <Input
+                              size="xs"
+                              value={edits.responsavel ?? responsavelDisplay}
+                              onChange={(e) => updateEdit(item.rowKey, 'responsavel', e.target.value)}
+                              placeholder="Responsável"
+                            />
+                          ) : (
+                            responsavelDisplay
+                          )}
+                        </Td>
+                      )}
                       
                       {/* Colunas de consumo */}
-                      {colunasRenderizadas}
+                      {isColVisible('consumoGrupo') && colunasRenderizadas}
                       
                       {/* Coluna COBERTURA virtual */}
-                      <Td isNumeric>{formatCoberturaVirtual(item)}</Td>
+                      {isColVisible('coberturaVirtual') && <Td isNumeric>{formatCoberturaVirtual(item)}</Td>}
 
                       {/* Coluna Pré-empenho */}
-                      <ColunaPreEmpenhoCell numeroPreEmpenho={item.numeroPreEmpenho} />
+                      {isColVisible('numeroPreEmpenho') && <ColunaPreEmpenhoCell numeroPreEmpenho={item.numeroPreEmpenho} />}
+                      {isColVisible('processoSeiEmp') && <Td>{item.processoSeiEmp?.trim() ? item.processoSeiEmp : '-'}</Td>}
                       
                       {/* Demais colunas */}
-                      <Td>{item.registroMaster ?? '-'}</Td>
-                      <Td textAlign="center">
-                        {item.vigenciaRegistro ? (() => { 
-                          const d = parseDate(item.vigenciaRegistro); 
-                          return d ? formatDate(d, 'dd/MM/yyyy') : '-'; 
-                        })() : '-'}
-                      </Td>                       
-                      <Td isNumeric>{item.saldoRegistro != null ? formatarDecimal(item.saldoRegistro, 0) : '-'}</Td>
-                      <Td isNumeric>{item.valorUnitRegistro != null ? `R$ ${formatarDecimal(item.valorUnitRegistro)}` : '-'}</Td>
-                      <Td isNumeric>
+                      {isColVisible('registro') && <Td>{item.registroMaster ?? '-'}</Td>}
+                      {isColVisible('vigencia') && (
+                        <Td textAlign="center">
+                          {item.vigenciaRegistro ? (() => {
+                            const d = parseDate(item.vigenciaRegistro);
+                            return d ? formatDate(d, 'dd/MM/yyyy') : '-';
+                          })() : '-'}
+                        </Td>
+                      )}
+                      {isColVisible('saldoRegistro') && <Td isNumeric>{item.saldoRegistro != null ? formatarDecimal(item.saldoRegistro, 0) : '-'}</Td>}
+                      {isColVisible('valorUnitRegistro') && <Td isNumeric>{item.valorUnitRegistro != null ? `R$ ${formatarDecimal(item.valorUnitRegistro)}` : '-'}</Td>}
+                      {isColVisible('qtdeEmbalagem') && <Td isNumeric>
                         {isSelected ? (
                           <Input
                             size="xs"
@@ -731,9 +884,9 @@ export function ControleEmpenhos() {
                         ) : (
                           item.qtdePorEmbalagem != null ? formatarDecimal(item.qtdePorEmbalagem) : '-'
                         )}
-                      </Td>
-                      <Td>{item.classificacaoXYZ ?? '-'}</Td>
-                      <Td>
+                      </Td>}
+                      {isColVisible('classificacaoXYZ') && <Td>{item.classificacaoXYZ ?? '-'}</Td>}
+                      {isColVisible('tipoArmazenamento') && <Td>
                         {isSelected ? (
                           <Select
                             size="xs"
@@ -750,8 +903,8 @@ export function ControleEmpenhos() {
                         ) : (
                           item.tipoArmazenamento ?? '-'
                         )}
-                      </Td>
-                      <Td>
+                      </Td>}
+                      {isColVisible('capacidadeEstocagem') && <Td>
                         {isSelected ? (
                           <Input
                             size="xs"
@@ -763,9 +916,9 @@ export function ControleEmpenhos() {
                         ) : (
                           item.capacidadeEstocagem ?? '-'
                         )}
-                      </Td>
-                      <StatusCell status={item.status} statusDetails={item.statusDetails} />
-                      <Td maxW="300px">
+                      </Td>}
+                      {isColVisible('status') && <StatusCell status={item.status} statusDetails={item.statusDetails} />}
+                      {isColVisible('observacao') && <Td maxW="300px">
                         {isSelected ? (
                           <Input
                             size="xs"
@@ -777,7 +930,7 @@ export function ControleEmpenhos() {
                         ) : (
                           (item.observacao ?? '-').toString()
                         )}
-                      </Td>
+                      </Td>}
                       {/* Coluna Checkbox (última coluna, fixa à direita) */}
                       <Td
                         {...getStickyRightStyles(false)}
