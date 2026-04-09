@@ -92,6 +92,8 @@ const NR_COL = process.env.DW_FEMPNUM_REGISTRO_COLUMN || 'numero_do_registro';
 const NR_COL_REF = quoteId(NR_COL);
 const PROCESSO_SEI_COL = process.env.DW_FEMPPROC_COLUMN || 'processo_sei';
 const PROCESSO_SEI_COL_REF = quoteId(PROCESSO_SEI_COL);
+const DATA_PRE_EMPENHO_COL = process.env.DW_FEMPDATA_COLUMN || 'data_pre_empenho';
+const DATA_PRE_EMPENHO_COL_REF = quoteId(DATA_PRE_EMPENHO_COL);
 
 /**
  * Pré-empenho (código_pre_empenho) por (material, numero_do_registro).
@@ -224,7 +226,11 @@ async function queryProcessoSeiPorPairs(
       f.${PROCESSO_SEI_COL_REF}::text AS processo_sei
     FROM ${sourceRef} f
     WHERE (${materialPrefixExpr}, COALESCE(f.${NR_COL_REF}::text, '')) IN (VALUES ${valuesClause})
-    ORDER BY master_code, numero_registro
+    ORDER BY
+      master_code,
+      numero_registro,
+      f.${DATA_PRE_EMPENHO_COL_REF} DESC NULLS LAST,
+      (f.${PROCESSO_SEI_COL_REF} IS NOT NULL) DESC
   `;
 
   const res = await pool.query(query, allParams);
@@ -246,6 +252,7 @@ async function queryProcessoSeiPorPairs(
 
 /**
  * Processo SEI por (material, numero_do_registro), com prioridade na view e fallback para tabela SAFS_fEmpenho.
+ * Regra: quando houver múltiplos registros por par (material, registro), usa o de data_pre_empenho mais recente.
  * Chave no retorno: "master|numeroRegistro".
  */
 export async function getProcessoSeiPorMastersERegistros(
