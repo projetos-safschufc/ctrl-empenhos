@@ -89,18 +89,21 @@ export interface EditarRecebimentoResponse {
   total: number;
 }
 
-/** Lista de Empenhos: busca por Master e Empenho (usa empenhos-pendentes) */
+/** Lista de Empenhos: busca por Master e Empenho (usa empenhos-pendentes com incluirGerados) */
 export async function fetchListaEmpenhos(params: {
   master?: string;
   empenho?: string;
   page?: number;
   pageSize?: number;
+  /** Padrão true: inclui linhas com status_pedido = 'Gerado' (consulta ampla na plataforma). */
+  incluirGerados?: boolean;
 }): Promise<ListaEmpenhosResponse> {
   const q = new URLSearchParams();
   if (params.master?.trim()) q.set('codigo', params.master.trim());
   if (params.empenho?.trim()) q.set('empenho', params.empenho.trim());
   if (params.page != null) q.set('page', String(params.page));
   if (params.pageSize != null) q.set('pageSize', String(params.pageSize));
+  if (params.incluirGerados !== false) q.set('incluirGerados', 'true');
   const path = `/empenhos-pendentes${q.toString() ? `?${q.toString()}` : ''}`;
   return request<ListaEmpenhosResponse>(path);
 }
@@ -144,7 +147,7 @@ export async function fetchListaRecebimentosNfEmpenho(params: {
 
 /** Opções de empenhos para select (usa empenhos-pendentes com limite) */
 export async function fetchEmpenhosOpcoes(): Promise<EmpenhoOption[]> {
-  const data = await request<ListaEmpenhosResponse>('/empenhos-pendentes?pageSize=500');
+  const data = await request<ListaEmpenhosResponse>('/empenhos-pendentes?pageSize=500&incluirGerados=true');
   const seen = new Set<string>();
   const list: EmpenhoOption[] = [];
   for (const row of data.itens || []) {

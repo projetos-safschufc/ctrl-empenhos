@@ -6,7 +6,7 @@ export const empenhosPendentesController = {
   /**
    * Lista empenhos pendentes da tabela public.empenho.
    * Critérios: status_item <> 'Atendido', fl_evento = 'Empenho'.
-   * Query: codigo (material), empenho (nu_documento_siafi).
+   * Query: codigo (material), empenho (nu_documento_siafi), incluirGerados (true|1 inclui status_pedido = 'Gerado').
    */
   async list(req: Request, res: Response) {
     try {
@@ -14,7 +14,18 @@ export const empenhosPendentesController = {
       const empenho = (req.query.empenho as string) || undefined;
       const page = req.query.page != null ? parseInt(String(req.query.page), 10) : undefined;
       const pageSize = req.query.pageSize != null ? parseInt(String(req.query.pageSize), 10) : undefined;
-      const result = await listEmpenhosPendentesPublic({ codigo, empenho, page, pageSize });
+      const ig = req.query.incluirGerados;
+      const igStr = Array.isArray(ig) ? ig[0] : ig;
+      const incluirGerados =
+        typeof igStr === 'string' &&
+        (igStr.toLowerCase() === 'true' || igStr === '1');
+      const result = await listEmpenhosPendentesPublic({
+        codigo,
+        empenho,
+        page,
+        pageSize,
+        incluirGerados,
+      });
       res.json(result);
     } catch (err) {
       console.error('[empenhosPendentesController.list]', err);

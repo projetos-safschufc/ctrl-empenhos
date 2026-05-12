@@ -4,7 +4,8 @@
  * - STATUS ITEM: IF(status_item == "Emitido" OR status_item == "Atend. parcial") --> exibir (listar e mostrar o valor na coluna).
  * - QT SALDO: IF(fl_evento == "Empenho" AND (status_item == "Atend. parcial" OR status_item == "Emitido");
  *              IF(status_item == "Atend. parcial"; qt_saldo_item; qt_de_embalagem); 0)
- * - Filtro de listagem: fl_evento = 'Empenho', status_item IN ('Emitido', 'Atend. parcial'), status_pedido != 'Gerado'.
+ * - Filtro de listagem: fl_evento = 'Empenho', status_item IN ('Emitido', 'Atend. parcial'); por padrão status_pedido != 'Gerado'
+ *   (parâmetro incluirGerados=true inclui também status_pedido = 'Gerado', ex.: Lista de Empenhos).
  * - Exibição: somente registros com QT SALDO > 0 (Atend. parcial: qt_saldo_item > 0; Emitido: qt_de_embalagem > 0).
  *
  * Nº pré-empenho (Controle de Empenhos): cd_empenho/numero por (material, nu_registro_licitacao) com
@@ -100,6 +101,8 @@ export interface ListEmpenhosPendentesPublicFilters {
   empenho?: string;
   page?: number;
   pageSize?: number;
+  /** Se true, não exclui linhas com status_pedido = 'Gerado' (Lista de Empenhos). Padrão: false. */
+  incluirGerados?: boolean;
 }
 
 const DEFAULT_PAGE = 1;
@@ -109,6 +112,7 @@ const MAX_PAGE_SIZE = 100;
 /**
  * Lista empenhos pendentes: status_item "Emitido" ou "Atend. parcial", fl_evento = 'Empenho'.
  * Exibe somente registros com QT SALDO > 0 (Atend. parcial: qt_saldo_item > 0; Emitido: qt_de_embalagem > 0).
+ * Com incluirGerados=false (padrão), exclui status_pedido = 'Gerado'.
  */
 export async function listEmpenhosPendentesPublic(
   filters: ListEmpenhosPendentesPublicFilters = {}
@@ -116,6 +120,7 @@ export async function listEmpenhosPendentesPublic(
   const page = Math.max(1, filters.page ?? DEFAULT_PAGE);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE));
   const skip = (page - 1) * pageSize;
+  const incluirGerados = Boolean(filters.incluirGerados);
 
   const where: {
     status_item?: { in: string[] };
@@ -130,7 +135,7 @@ export async function listEmpenhosPendentesPublic(
   } = {
     status_item: { in: [...STATUS_ITENS_EXIBIR] },
     fl_evento: 'Empenho',
-    status_pedido: { not: 'Gerado' },
+    ...(!incluirGerados ? { status_pedido: { not: 'Gerado' } as const } : {}),
     OR: [
       { status_item: 'Atend. parcial', qt_saldo_item: { gt: 0 } },
       { status_item: 'Emitido', qt_de_embalagem: { gt: 0 } },
@@ -159,9 +164,11 @@ export async function listEmpenhosPendentesPublic(
       const conditions = [
         "status_item IN ('Atend. parcial', 'Emitido')",
         "fl_evento = 'Empenho'",
-        "(status_pedido IS DISTINCT FROM 'Gerado')",
+        ...(incluirGerados ? [] : ["(status_pedido IS DISTINCT FROM 'Gerado')"]),
         "((TRIM(COALESCE(status_item::text, '')) = 'Atend. parcial' AND COALESCE(qt_saldo_item::numeric, 0) > 0) OR (TRIM(COALESCE(status_item::text, '')) = 'Emitido' AND COALESCE(qt_de_embalagem::numeric, 0) > 0))",
       ];
+      const pedidoOkParaSaldo =
+        incluirGerados ? '' : " AND TRIM(COALESCE(status_pedido::text, '')) <> 'Gerado'";
       if (codigo) {
         conditions.push(`material ILIKE ${addParam(`%${codigo}%`)}`);
       }
@@ -175,7 +182,7 @@ export async function listEmpenhosPendentesPublic(
                fl_evento, nu_documento_siafi, status_item, status_pedido,
                (CASE
                  WHEN TRIM(COALESCE(fl_evento::text, '')) = 'Empenho'
-                  AND TRIM(COALESCE(status_pedido::text, '')) <> 'Gerado'
+                  ${pedidoOkParaSaldo}
                   AND (TRIM(COALESCE(status_item::text, '')) = 'Atend. parcial'
                        OR TRIM(COALESCE(status_item::text, '')) = 'Emitido')
                  THEN (CASE WHEN TRIM(COALESCE(status_item::text, '')) = 'Atend. parcial'
