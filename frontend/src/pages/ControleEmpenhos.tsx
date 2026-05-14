@@ -26,6 +26,7 @@ import {
 import { useControleEmpenhos } from '../hooks/useControleEmpenhos';
 import { formatDate, parseDate } from '../utils/date';
 import {
+  calcularCoberturaEstoqueFisica,
   formatarDecimal,
   renderizarColunasControle,
   DadosColunasControleRender,
@@ -769,10 +770,10 @@ export function ControleEmpenhos() {
                     estoqueVirtual: item.estoqueVirtual != null && Number.isFinite(Number(item.estoqueVirtual))
                       ? Number(item.estoqueVirtual)
                       : (Number(item.estoqueAlmoxarifados) || 0) + (Number(item.saldoEmpenhos) || 0),
-                    coberturaEstoque:
-                      Number(item.mediaConsumo6Meses) > 0
-                        ? Number(item.estoqueAlmoxarifados) / Number(item.mediaConsumo6Meses)
-                        : null,
+                    coberturaEstoque: calcularCoberturaEstoqueFisica(
+                      item.estoqueAlmoxarifados,
+                      item.mediaConsumo6Meses
+                    ),
                   };
                   
                   const colunasRenderizadas = renderizarColunasControle(dadosColunasRender);

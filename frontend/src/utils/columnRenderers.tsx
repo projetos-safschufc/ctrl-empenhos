@@ -245,6 +245,18 @@ export function ColunaPreEmpenhoCell({
   );
 }
 
+/** Cobertura est. físico = estoque almox. / média 6 meses (mesma regra da tabela Gestão de Estoque). */
+export function calcularCoberturaEstoqueFisica(
+  estoqueAlmoxarifados: number | null | undefined,
+  mediaConsumo6Meses: number | null | undefined
+): number | null {
+  const estoque = Number(estoqueAlmoxarifados ?? 0);
+  const media = Number(mediaConsumo6Meses ?? 0);
+  if (!Number.isFinite(estoque) || !Number.isFinite(media) || media <= 0) return null;
+  const valor = estoque / media;
+  return Number.isFinite(valor) ? valor : null;
+}
+
 /**
  * Renderiza célula de cobertura (dias de estoque).
  * Cálculo: Estoque Almoxarifados / Média Consumo 6 meses.

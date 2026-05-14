@@ -28,8 +28,13 @@ export function Login() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !password) {
+      toast({ title: 'Informe e-mail e senha', status: 'warning', duration: 3000 });
+      return;
+    }
     setSubmitting(true);
-    const { ok, error } = await login(email, password);
+    const { ok, error } = await login(normalizedEmail, password);
     setSubmitting(false);
     if (ok) {
       toast({ title: 'Login realizado', status: 'success', duration: 2000 });
@@ -93,13 +98,18 @@ export function Login() {
             <Button
               type="submit"
               w="full"
-              colorScheme="green"
-              bg="brand.green"
-              _hover={{ bg: 'brand.darkGreen' }}
+              size="lg"
+              mt={2}
+              bg="brand.darkGreen"
+              color="white"
+              fontWeight="bold"
+              letterSpacing="0.08em"
+              _hover={{ bg: 'brand.700' }}
+              _active={{ bg: 'brand.800' }}
               isLoading={submitting}
               loadingText="Entrando..."
             >
-              Entrar
+              ENTRAR
             </Button>
           </VStack>
         </form>

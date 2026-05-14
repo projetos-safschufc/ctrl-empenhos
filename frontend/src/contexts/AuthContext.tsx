@@ -67,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const { data, error, status } = await authApi.login(email, password);
+      if (status === 0) {
+        return { ok: false, error: error ?? 'Servidor indisponível' };
+      }
       if (status === 401 || !data) {
         return { ok: false, error: error ?? 'Credenciais inválidas' };
       }

@@ -8,6 +8,9 @@ import { extendTheme } from '@chakra-ui/react';
 const theme = extendTheme({
   colors: {
     brand: {
+      sand: '#F5F0E6',
+      green: '#8BC547',
+      darkGreen: '#145D50',
       50: '#E6F3FF',
       100: '#BAE0FF',
       200: '#8CCDFF',

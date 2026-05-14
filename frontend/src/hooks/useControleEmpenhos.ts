@@ -9,6 +9,7 @@ import {
 } from '../api/client';
 import { useAppCache, CacheKeys } from '../contexts/AppCacheContext';
 import { MAX_EXPORT_ROWS } from '../utils/plataformaExport';
+import { calcularCoberturaEstoqueFisica } from '../utils/columnRenderers';
 
 /**
  * Opções de paginação permitidas na tela de Gestão de Estoque.
@@ -334,19 +335,10 @@ export function useControleEmpenhos() {
       const dir = sortDir === 'desc' ? -1 : 1;
 
       if (sortBy === 'cobertura') {
-        // Ordenar pela mesma regra da coluna exibida em tela:
-        // cobertura física = estoqueAlmoxarifados / mediaConsumo6Meses
-        const calcCoberturaFisica = (item: ItemControleEmpenho): number => {
-          const estoque = Number(item.estoqueAlmoxarifados ?? 0);
-          const media = Number(item.mediaConsumo6Meses ?? 0);
-          if (!Number.isFinite(estoque) || !Number.isFinite(media) || media <= 0) return Number.NaN;
-          const v = estoque / media;
-          return Number.isFinite(v) ? v : Number.NaN;
-        };
-        const va = calcCoberturaFisica(a);
-        const vb = calcCoberturaFisica(b);
-        const aNull = !Number.isFinite(va);
-        const bNull = !Number.isFinite(vb);
+        const va = calcularCoberturaEstoqueFisica(a.estoqueAlmoxarifados, a.mediaConsumo6Meses);
+        const vb = calcularCoberturaEstoqueFisica(b.estoqueAlmoxarifados, b.mediaConsumo6Meses);
+        const aNull = va == null;
+        const bNull = vb == null;
         if (aNull && bNull) return 0;
         if (aNull) return 1; // nulos sempre no final
         if (bNull) return -1;

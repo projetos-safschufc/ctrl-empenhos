@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { PLATAFORMA_COLORS } from '../constants/plataforma';
 import type { ItemControleEmpenho } from '../api/client';
-import { formatarDecimal, formatarMesano } from './columnRenderers';
+import { calcularCoberturaEstoqueFisica, formatarDecimal, formatarMesano } from './columnRenderers';
 
 /** Número máximo de linhas permitidas em uma exportação Excel/PDF (evita travamento do navegador). */
 export const MAX_EXPORT_ROWS = 5000;
@@ -152,7 +152,7 @@ export async function exportarExcelControleEmpenhos(
       Number(item.estoqueGeral) ?? 0,
       Number(item.saldoEmpenhos) ?? 0,
       estoqueVirtual,
-      item.coberturaEstoque != null ? Number(item.coberturaEstoque) : null,
+      calcularCoberturaEstoqueFisica(item.estoqueAlmoxarifados, item.mediaConsumo6Meses),
       item.numeroPreEmpenho ?? '-',
       item.registroMaster ?? '-',
       vigenciaDate,
